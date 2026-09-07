@@ -45,12 +45,26 @@ local function open(dealerId)
     end)
 end
 
-for id, dealer in pairs(Config.dealerships) do
-    QB.interact.addBoxZone(('qbdealership:%s'):format(id), dealer.coords, dealer.size or { x = 4.0, y = 4.0, z = 3.0 }, {
-        {
-            label = ('Browse %s'):format(dealer.label),
-            icon = 'car-front',
-            action = function() open(id) end,
-        },
-    }, Config.debug)
+local function registerDealershipTargets()
+    for id, dealer in pairs(Config.dealerships) do
+        exports.qbtarget:addBoxZone({
+            coords = dealer.coords,
+            size = dealer.size or { x = 4.0, y = 4.0, z = 3.0 },
+            rotation = dealer.rotation or dealer.heading or 0.0,
+            distance = dealer.distance,
+            debug = Config.debug,
+            options = {
+                {
+                    label = ('Browse %s'):format(dealer.label),
+                    icon = 'car-front',
+                    onSelect = function() open(id) end,
+                },
+            },
+        })
+    end
 end
+
+registerDealershipTargets()
+AddEventHandler('onClientResourceStart', function(resource)
+    if resource == 'qbtarget' then registerDealershipTargets() end
+end)

@@ -9,6 +9,7 @@ description 'Server-authoritative vehicle dealership backed by qbcore shared veh
 
 dependency 'qblib'
 dependency 'qbcore'
+dependency 'qbtarget'
 
 shared_script '@qblib/init.lua'
 
