@@ -25,3 +25,6 @@ Config.purchase = {
     plateAttempts = 12,
     vehicle = { fuel = 100, engineHealth = 1000, bodyHealth = 1000 },
 }
+
+-- Registers this resource-owned configuration with qblib without changing its public Config table.
+if QB and QB.config and QB.config.adopt then Config = QB.config.adopt(Config) end
