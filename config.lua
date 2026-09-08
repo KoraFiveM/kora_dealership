@@ -2,9 +2,10 @@ Config = {}
 
 Config.debug = false
 
--- Locations and model allow-lists only. Vehicle labels, brands, categories and
--- prices deliberately do NOT live here: each model is resolved from qbcore's
--- shared `vehicles` registry, seeded by qbcore/shared/vehicles.lua.
+-- Locations and vehicle allow-lists only. Vehicle labels and brands are
+-- resolved from qbcore's shared `vehicles` registry, seeded by
+-- qbcore/shared/vehicles.lua. A row may override that vehicle's default price
+-- for this dealership.
 Config.dealerships = {
     pdm = {
         label = 'Premium Deluxe Motorsport',
@@ -12,12 +13,16 @@ Config.dealerships = {
         size = { x = 5.0, y = 5.0, z = 3.0 },
         distance = 3.0,
         bucket = 0,
-        models = { 'sultan', 'blista', 'kuruma' },
+        vehicles = {
+            { vehicle = 'sultan' },
+            { vehicle = 'blista' },
+            { vehicle = 'kuruma', price = 90000 },
+        },
     },
 }
 
 -- Purchase mechanics are policy rather than catalogue data. The configured
--- models above remain the only inventory-like part of this resource.
+-- vehicles above remain the only inventory-like part of this resource.
 Config.purchase = {
     account = 'bank',
     maxPrice = 5000000,

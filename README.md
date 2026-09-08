@@ -2,11 +2,12 @@
 
 `qbdealership` is a server-authoritative vehicle dealership for qbcore2.
 
-Its catalogue never duplicates vehicle facts. Add a model to a dealership's
-`Config.dealerships.<id>.models` list and the resource resolves its display
-name, brand, category and price from qbcore's live shared `vehicles` registry
-(seeded in `qbcore/shared/vehicles.lua`). Change a price or vehicle definition
-there, not here.
+Its catalogue never duplicates vehicle facts. Add `{ vehicle = 'model' }` to
+a dealership's `Config.dealerships.<id>.vehicles` list and the resource
+resolves its display name, brand and default price from qbcore's live shared
+`vehicles` registry (seeded in `qbcore/shared/vehicles.lua`). Add `price` to a
+row only when that dealership needs an override, for example
+`{ vehicle = 'kuruma', price = 90000 }`.
 
 Purchases are revalidated on the server: the player must be at the configured
 location and routing bucket; the requested model must be in that dealership's

@@ -25,22 +25,23 @@ local function dealerFor(id)
     return dealer
 end
 
-local function modelFor(dealer, model)
+local function vehicleFor(dealer, model)
     if type(model) ~= 'string' then return nil, 'unknown vehicle' end
     model = model:lower()
-    for _, allowed in ipairs(dealer.models or {}) do
-        if allowed == model then return model end
+    for _, configured in ipairs(dealer.vehicles or {}) do
+        if type(configured) == 'table' and configured.vehicle == model then return configured end
     end
     return nil, 'vehicle is not sold here'
 end
 
-local function sharedVehicle(model)
+local function sharedVehicle(model, priceOverride)
     local vehicle, err = core('getShared', 'vehicles', model)
     if type(vehicle) ~= 'table' or vehicle.model ~= model then
         return nil, err or 'vehicle is no longer available'
     end
 
-    local price = tonumber(vehicle.price)
+    local price = tonumber(priceOverride)
+    if price == nil then price = tonumber(vehicle.price) end
     local limit = tonumber(Config.purchase.maxPrice) or 5000000
     if not price or price <= 0 or price ~= math.floor(price) or price > limit then
         return nil, 'vehicle is not for sale'
@@ -84,14 +85,14 @@ local function availablePlate()
     return nil, 'could not allocate a vehicle plate'
 end
 
-local function publicVehicle(model)
-    local vehicle, price = sharedVehicle(model)
+local function publicVehicle(configured)
+    local model = configured.vehicle
+    local vehicle, price = sharedVehicle(model, configured.price)
     if not vehicle then return nil end
     return {
         model = model,
         name = vehicle.name,
         brand = vehicle.brand,
-        category = vehicle.category,
         price = price,
     }
 end
@@ -103,8 +104,8 @@ function api.list(src, dealerId)
     if not allowed then return nil, accessErr end
 
     local vehicles = {}
-    for _, model in ipairs(dealer.models or {}) do
-        local row = publicVehicle(model)
+    for _, configured in ipairs(dealer.vehicles or {}) do
+        local row = publicVehicle(configured)
         if row then vehicles[#vehicles + 1] = row end
     end
     return { id = dealerId, label = dealer.label, vehicles = vehicles }
@@ -116,9 +117,10 @@ function api.buy(src, dealerId, requestedModel)
     local allowed, accessErr = nearby(src, dealer)
     if not allowed then return false, accessErr end
 
-    local model, modelErr = modelFor(dealer, requestedModel)
-    if not model then return false, modelErr end
-    local vehicle, priceOrErr = sharedVehicle(model)
+    local configured, vehicleErr = vehicleFor(dealer, requestedModel)
+    if not configured then return false, vehicleErr end
+    local model = configured.vehicle
+    local vehicle, priceOrErr = sharedVehicle(model, configured.price)
     if not vehicle then return false, priceOrErr end
     local price = priceOrErr
 

@@ -3,10 +3,10 @@ local H = dofile('test/harness.lua')
 local callbacks, charges, refunds, created, notifications = {}, {}, {}, {}, {}
 local player = { coords = { x = -56.6, y = -1096.7, z = 26.4 }, bucket = 0 }
 local vehicles = {
-    sultan = { model = 'sultan', name = 'Sultan', brand = 'Karin', category = 'sedans', price = 12000 },
-    blista = { model = 'blista', name = 'Blista', brand = 'Dinka', category = 'compacts', price = 8000 },
-    kuruma = { model = 'kuruma', name = 'Kuruma', brand = 'Karin', category = 'sports', price = 95000 },
-    police = { model = 'police', name = 'Cruiser', brand = 'Vapid', category = 'emergency', price = 0 },
+    sultan = { model = 'sultan', name = 'Sultan', brand = 'Karin', price = 12000 },
+    blista = { model = 'blista', name = 'Blista', brand = 'Dinka', price = 8000 },
+    kuruma = { model = 'kuruma', name = 'Kuruma', brand = 'Karin', price = 95000 },
+    police = { model = 'police', name = 'Cruiser', brand = 'Vapid', price = 0 },
 }
 local persist = true
 
@@ -49,13 +49,14 @@ GetPlayerRoutingBucket = function() return player.bucket end
 dofile('server/dealership.lua')
 dofile('server/callbacks.lua')
 
-H.equal(Config.dealerships.pdm.models[1], 'sultan', 'config stores only a vehicle model reference')
-H.equal(Config.dealerships.pdm.price, nil, 'config does not duplicate a vehicle price')
+H.equal(Config.dealerships.pdm.vehicles[1].vehicle, 'sultan', 'config stores only a vehicle model reference')
+H.equal(Config.dealerships.pdm.vehicles[1].price, nil, 'config uses the shared price when no override is configured')
 H.ok(callbacks['qbdealership:list'].opts.rateLimit ~= nil and callbacks['qbdealership:buy'].opts.rateLimit ~= nil, 'every client callback is rate-limited')
 
 local catalogue = Dealership.api.list(1, 'pdm')
 H.equal(#catalogue.vehicles, 3, 'configured shared vehicles are listed in configuration order')
 H.equal(catalogue.vehicles[1].price, 12000, 'price is read from qbcore shared vehicles')
+H.equal(catalogue.vehicles[3].price, 90000, 'configured price override replaces the shared vehicle price')
 
 local bought = Dealership.api.buy(1, 'pdm', 'sultan')
 H.equal(bought.model, 'sultan', 'purchase returns the resolved shared model')
@@ -64,9 +65,13 @@ H.equal(created[1].citizenid, 'CID-1', 'persistence uses the server-resolved cha
 H.equal(created[1].job, nil, 'dealership creates a civilian-owned vehicle')
 H.ok(notifications[1].type == 'success', 'successful purchase notifies the buyer')
 
+local overrideBought = Dealership.api.buy(1, 'pdm', 'kuruma')
+H.equal(overrideBought.price, 90000, 'purchase returns the configured price override')
+H.equal(charges[2].amount, 90000, 'purchase charges the configured price override')
+
 local before = #charges
 local rejected = Dealership.api.buy(1, 'pdm', 'police')
-H.equal(rejected, false, 'a vehicle not in the model allow-list is refused')
+H.equal(rejected, false, 'a vehicle not in the dealership vehicle list is refused')
 H.equal(#charges, before, 'forged model is refused before charging')
 
 player.coords = { x = 0, y = 0, z = 0 }

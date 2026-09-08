@@ -23,7 +23,7 @@ local function open(dealerId)
             items[#items + 1] = {
                 id = vehicle.model,
                 label = vehicle.name or vehicle.model,
-                description = ('%s · %s · %s'):format(vehicle.brand or 'Unknown', vehicle.category or 'Vehicle', dollars(vehicle.price)),
+                description = ('%s · %s'):format(vehicle.brand or 'Unknown', dollars(vehicle.price)),
                 icon = 'car-front',
             }
         end
