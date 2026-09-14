@@ -1,70 +1,47 @@
--- Presentation only. The client displays the catalogue the server constructed
--- from qbcore's shared registry, then sends only a dealership id and model
--- string back for a fresh server-side location, catalogue and payment check.
+local Client = Dealership.client
 
-local function notify(message, type)
-    QB.notify.send({ title = 'Dealership', message = message, type = type or 'error' })
-end
+CreateThread(function()
+    local payload, err = QB.callback.trigger('qbdealership:server:hydrate')
+    if not payload then return Client.notify(err or 'Dealerships could not be loaded.', 'error') end
+    Client.dealerships, Client.admin, Client.ready = payload.dealerships or {}, payload.admin == true, payload.ready == true
+    Dealership.world.rebuild()
+end)
 
-local function dollars(value)
-    return ('$%d'):format(math.floor(tonumber(value) or 0))
-end
-
-local function open(dealerId)
-    CreateThread(function()
-        local catalogue, err = QB.callback.trigger('qbdealership:list', dealerId)
-        if not catalogue then return notify(err or 'Could not load this dealership.') end
-        if #catalogue.vehicles == 0 then return notify('There are no vehicles for sale here.', 'info') end
-
-        local items = {}
-        local byModel = {}
-        for _, vehicle in ipairs(catalogue.vehicles) do
-            byModel[vehicle.model] = vehicle
-            items[#items + 1] = {
-                id = vehicle.model,
-                label = vehicle.name or vehicle.model,
-                description = ('%s · %s'):format(vehicle.brand or 'Unknown', dollars(vehicle.price)),
-                icon = 'car-front',
-            }
-        end
-
-        local selected = QB.nui.openMenu(items, catalogue.label)
-        if not selected or selected.cancelled then return end
-        local vehicle = byModel[selected.selectedId]
-        if not vehicle then return end
-
-        local confirmation = QB.nui.openAlert({
-            title = 'Confirm purchase',
-            message = ('Buy %s for %s?'):format(vehicle.name or vehicle.model, dollars(vehicle.price)),
-            confirmLabel = 'Purchase',
-        })
-        if not confirmation or not confirmation.confirmed then return end
-
-        local purchased, purchaseErr = QB.callback.trigger('qbdealership:buy', dealerId, vehicle.model)
-        if not purchased then notify(purchaseErr or 'Purchase failed.') end
-    end)
-end
-
-local function registerDealershipTargets()
-    for id, dealer in pairs(Config.dealerships) do
-        exports.qbtarget:addBoxZone({
-            coords = dealer.coords,
-            size = dealer.size or { x = 4.0, y = 4.0, z = 3.0 },
-            rotation = dealer.rotation or dealer.heading or 0.0,
-            distance = dealer.distance,
-            debug = Config.debug,
-            options = {
-                {
-                    label = ('Browse %s'):format(dealer.label),
-                    icon = 'car-front',
-                    onSelect = function() open(id) end,
-                },
-            },
-        })
+RegisterCommand(Config.command, function()
+    if not Client.ready then return Client.notify('Dealerships are still loading.', 'error') end
+    local choices = {}
+    for id, dealer in pairs(Client.dealerships) do
+        if dealer.enabled or Client.admin then choices[#choices + 1] = { id = id, label = dealer.label,
+            description = dealer.job and ('Player-owned · ' .. dealer.job) or 'NPC-operated', icon = 'car-front' } end
     end
-end
+    table.sort(choices, function(a, b) return a.label < b.label end)
+    if Client.admin then choices[#choices + 1] = { id = '__create', label = 'Create dealership', icon = 'plus' } end
+    local selected = QB.nui.openMenu(choices, 'Dealerships')
+    if not selected or selected.cancelled then return end
+    if selected.selectedId ~= '__create' then return Client.open(selected.selectedId) end
+    local result = QB.nui.openInputDialog({
+        { id = 'label', label = 'Dealership name', type = 'text', required = true, maxLength = 128 },
+        { id = 'id', label = 'Dealership id', type = 'text', required = true, maxLength = 64 },
+        { id = 'job', label = 'Owning job (blank for NPC)', type = 'text', maxLength = 64 },
+    }, 'Create dealership', 'After this, draw the dealership box zone in the world.')
+    if not result or result.cancelled then return end
+    local zone = Dealership.world.pickZone()
+    if not zone then return Client.notify('Dealership creation cancelled.', 'info') end
+    local values = result.values
+    local saved, saveErr = QB.callback.trigger('qbdealership:server:saveDealership', {
+        id = values.id, label = values.label, job = values.job ~= '' and values.job or nil,
+        enabled = true, autoAccept = true, zone = zone, vehicles = {}, prices = {}, placements = {} })
+    if not saved then return Client.notify(saveErr or 'Dealership could not be created.', 'error') end
+    Client.dealerships[saved.id] = saved
+    Client.notify('Dealership created. Add its vehicles and spawn points next.', 'success')
+    Client.open(saved.id, nil, 'creator', 'vehicles')
+end, false)
 
-registerDealershipTargets()
-AddEventHandler('onClientResourceStart', function(resource)
-    if resource == 'qbtarget' then registerDealershipTargets() end
+AddEventHandler('QBCore:Client:OnPlayerLoaded', function()
+    CreateThread(function()
+        local payload = QB.callback.trigger('qbdealership:server:hydrate')
+        if not payload then return end
+        Client.dealerships, Client.admin, Client.ready = payload.dealerships or {}, payload.admin == true, payload.ready == true
+        Dealership.world.rebuild()
+    end)
 end)

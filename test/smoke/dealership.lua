@@ -1,89 +1,114 @@
 local H = dofile('test/harness.lua')
 
-local callbacks, charges, refunds, created, notifications = {}, {}, {}, {}, {}
-local player = { coords = { x = -56.6, y = -1096.7, z = 26.4 }, bucket = 0 }
+Config = nil
+QB = { sql = { NULL = {} } }
+dofile('config.lua')
+dofile('shared/schema.lua')
+
+local dealer = assert(Dealership.schema.normaliseDealership({
+    id = 'pdm', label = 'Premium Deluxe Motorsport', autoAccept = true,
+    zone = { coords = { x = 1, y = 2, z = 3 }, size = { x = 10, y = 10, z = 4 } },
+    vehicles = { 'sultan', 'sultan', 'blista' }, prices = { sultan = 15000 }, placements = {},
+    purchaseSpawnCoords = { x = 5, y = 6, z = 7, w = 90 },
+}))
+H.equal(#dealer.vehicles, 2, 'schema removes duplicate vehicle models')
+H.equal(dealer.prices.sultan, 15000, 'schema preserves dealership price overrides')
+H.equal(dealer.prices.blista, nil, 'missing overrides continue to use QB Core prices')
+
+local custom = assert(Dealership.schema.offer({ direction = 'buy', model = 'sultan', terms = '10 meals' }))
+H.equal(custom.amount, nil, 'non-cash offers do not require a cash amount')
+H.equal(custom.terms, '10 meals', 'non-cash terms are retained for manual review')
+
+local callbacks, charges, created, inserted = {}, {}, {}, {}
 local vehicles = {
     sultan = { model = 'sultan', name = 'Sultan', brand = 'Karin', price = 12000 },
     blista = { model = 'blista', name = 'Blista', brand = 'Dinka', price = 8000 },
-    kuruma = { model = 'kuruma', name = 'Kuruma', brand = 'Karin', price = 95000 },
-    police = { model = 'police', name = 'Cruiser', brand = 'Vapid', price = 0 },
 }
-local persist = true
+Dealership.state = {
+    get = function(id) return id == 'pdm' and dealer or nil end,
+    near = function() return true end,
+    canManage = function() return false end,
+    stock = function() return {} end,
+    player = function(src)
+        return { source = src, citizenid = 'CID-1', charinfo = { firstname = 'John', lastname = 'Doe' } }
+    end,
+    snapshot = function() return { pdm = dealer } end,
+    isAdmin = function() return false end,
+    ready = true,
+}
 
-Config = nil
-dofile('config.lua')
-QB = {
-    callback = { register = function(name, fn, opts) callbacks[name] = { fn = fn, opts = opts } end },
-    notify = { send = function(_, payload) notifications[#notifications + 1] = payload end },
-}
+QB.callback = { register = function(name, fn, options) callbacks[name] = { fn = fn, options = options } end }
+QB.sql.insert = function(_, params) inserted[#inserted + 1] = params; return 7 end
+QB.sql.update = function() return 1 end
+QB.sql.execute = function() return {} end
+QB.sql.query = function() return {} end
+QB.sql.transaction = function() return true end
+QB.sql.single = function() return nil end
 exports = {
     qbcore = {
         getShared = function(_, namespace, model)
-            H.equal(namespace, 'vehicles', 'catalogue uses the shared vehicle registry')
+            H.equal(namespace, 'vehicles', 'catalogue uses QB Core shared vehicles')
             return vehicles[model]
         end,
-        getPlayerData = function(_, _, path)
-            H.equal(path[1], 'citizenid', 'buyer identity comes from qbcore')
-            return 'CID-1'
-        end,
-        removeMoney = function(_, _, account, amount)
-            charges[#charges + 1] = { account = account, amount = amount }
-            return true
-        end,
-        addMoney = function(_, _, account, amount, reason, ignoreTax)
-            refunds[#refunds + 1] = { account = account, amount = amount, reason = reason, ignoreTax = ignoreTax }
-            return true
-        end,
         getByPlate = function() return nil end,
-        createVehicle = function(_, citizenid, model, plate, job, extra)
-            created[#created + 1] = { citizenid = citizenid, model = model, plate = plate, job = job, extra = extra }
-            return persist
+        createVehicle = function(_, citizenid, model, plate)
+            created[#created + 1] = { citizenid = citizenid, model = model, plate = plate }
+            return true
         end,
+        removeMoney = function(_, src, account, amount)
+            charges[#charges + 1] = { src = src, account = account, amount = amount }
+            return true
+        end,
+        addMoney = function() return true end,
+        spawnVehicle = function() return 42 end,
+        getPlayerByCitizenId = function() return nil end,
+        getByOwner = function() return {} end,
+        allShared = function() return {} end,
     },
 }
 setmetatable(exports, { __call = function() end })
-GetPlayerPed = function() return 12 end
-GetEntityCoords = function() return player.coords end
-GetPlayerRoutingBucket = function() return player.bucket end
+GetResourceState = function() return 'missing' end
+TriggerClientEvent = function() end
+AddEventHandler = function() end
 
 dofile('server/dealership.lua')
 dofile('server/callbacks.lua')
 
-H.equal(Config.dealerships.pdm.vehicles[1].vehicle, 'sultan', 'config stores only a vehicle model reference')
-H.equal(Config.dealerships.pdm.vehicles[1].price, nil, 'config uses the shared price when no override is configured')
-H.ok(callbacks['qbdealership:list'].opts.rateLimit ~= nil and callbacks['qbdealership:buy'].opts.rateLimit ~= nil, 'every client callback is rate-limited')
+local catalogue = assert(Dealership.api.catalogue(1, 'pdm'))
+H.equal(#catalogue.vehicles, 2, 'catalogue contains the configured vehicles')
+H.equal(catalogue.vehicles[1].price, 15000, 'dealership override is the customer price')
+H.equal(catalogue.vehicles[2].price, 8000, 'QB Core shared price is the default')
 
-local catalogue = Dealership.api.list(1, 'pdm')
-H.equal(#catalogue.vehicles, 3, 'configured shared vehicles are listed in configuration order')
-H.equal(catalogue.vehicles[1].price, 12000, 'price is read from qbcore shared vehicles')
-H.equal(catalogue.vehicles[3].price, 90000, 'configured price override replaces the shared vehicle price')
+local purchased = assert(Dealership.api.purchase(1, 'pdm', 'blista'))
+H.equal(charges[1].amount, 8000, 'purchase charges the server-resolved shared price')
+H.equal(created[1].citizenid, 'CID-1', 'purchased ownership uses the server-resolved character')
+H.equal(purchased.networkId, 42, 'direct purchase spawns at the configured purchase point')
 
-local bought = Dealership.api.buy(1, 'pdm', 'sultan')
-H.equal(bought.model, 'sultan', 'purchase returns the resolved shared model')
-H.equal(charges[1].amount, 12000, 'purchase charges the shared vehicle price')
-H.equal(created[1].citizenid, 'CID-1', 'persistence uses the server-resolved character')
-H.equal(created[1].job, nil, 'dealership creates a civilian-owned vehicle')
-H.ok(notifications[1].type == 'success', 'successful purchase notifies the buyer')
+local beforeCharges = #charges
+local forged = Dealership.api.purchase(1, 'pdm', 'police')
+H.equal(forged, false, 'a model outside the dealership catalogue is refused')
+H.equal(#charges, beforeCharges, 'forged models are refused before money moves')
 
-local overrideBought = Dealership.api.buy(1, 'pdm', 'kuruma')
-H.equal(overrideBought.price, 90000, 'purchase returns the configured price override')
-H.equal(charges[2].amount, 90000, 'purchase charges the configured price override')
+local managed = Dealership.api.setPrice(1, 'pdm', 'sultan', 1)
+H.equal(managed, false, 'pricing changes require dealership management access')
 
-local before = #charges
-local rejected = Dealership.api.buy(1, 'pdm', 'police')
-H.equal(rejected, false, 'a vehicle not in the dealership vehicle list is refused')
-H.equal(#charges, before, 'forged model is refused before charging')
+local offer = assert(Dealership.api.submitOffer(1, 'pdm', {
+    direction = 'buy', model = 'sultan', amount = 10000, terms = '10 meals',
+}))
+H.equal(offer.manual, true, 'offers with non-cash terms are always manual')
+H.equal(inserted[1][9], 0, 'manual terms never receive an automatic acceptance time')
 
-player.coords = { x = 0, y = 0, z = 0 }
-rejected = Dealership.api.buy(1, 'pdm', 'sultan')
-H.equal(rejected, false, 'purchase is refused away from the configured dealership')
-H.equal(#charges, before, 'distance refusal happens before charging')
+for name, callback in pairs(callbacks) do
+    H.ok(callback.options.rateLimit ~= nil, name .. ' is rate-limited')
+end
+H.ok(callbacks['qbdealership:server:manageOffer'] ~= nil, 'management offer callback is registered')
+H.ok(callbacks['qbdealership:server:saveDealership'] ~= nil, 'creator save callback is registered')
 
-player.coords = { x = -56.6, y = -1096.7, z = 26.4 }
-persist = false
-rejected = Dealership.api.buy(1, 'pdm', 'sultan')
-H.equal(rejected, false, 'failed vehicle persistence refuses the purchase')
-H.equal(refunds[1].amount, 12000, 'failed persistence refunds the exact charged shared price')
-H.ok(refunds[1].ignoreTax == true, 'refund is not taxed again')
+local serverSource = assert(io.open('server/dealership.lua', 'r')):read('*a')
+local clientSource = assert(io.open('client/world.lua', 'r')):read('*a')
+H.ok(serverSource:find('Config.AutoSellTime', 1, true) ~= nil, 'automatic offers use the configured delay')
+H.ok(serverSource:find('not offer.terms', 1, true) ~= nil, 'non-cash terms are excluded from automatic settlement')
+H.ok(clientSource:find("QB.placement.start('asbo')", 1, true) ~= nil, 'coordinate picking uses the shared vehicle placer')
+H.ok(clientSource:find('SetVehicleOnGroundProperly', 1, true) ~= nil, 'display and picker vehicles use the FiveM ground native')
 
 H.finish()

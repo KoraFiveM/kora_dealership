@@ -4,25 +4,34 @@ lua54 'yes'
 
 name 'qbdealership'
 author 'qbcore2'
-version '0.1.0'
-description 'Server-authoritative vehicle dealership backed by qbcore shared vehicle definitions'
+version '1.0.0'
+description 'Live dealership creator, showroom, management, stock and offer system'
 
 dependency 'qblib'
+dependency 'qbsql'
 dependency 'qbcore'
 dependency 'qbtarget'
 
-shared_script '@qblib/init.lua'
-
 shared_scripts {
+    '@qblib/init.lua',
+    '@qbsql/init.lua',
+    '@qbcore/init.lua',
     'config.lua',
+    'shared/schema.lua',
 }
 
--- Explicit order: the authority API is complete before its callback surface is
--- registered. Client code only renders the server-provided catalogue and sends
--- the dealership id plus selected model back as intent.
 server_scripts {
+    'server/state.lua',
     'server/dealership.lua',
     'server/callbacks.lua',
+    'server/main.lua',
 }
 
-client_script 'client/main.lua'
+client_scripts {
+    'client/state.lua',
+    'client/world.lua',
+    'client/app.lua',
+    'client/main.lua',
+}
+
+files { 'sql/001_dealerships.sql' }
