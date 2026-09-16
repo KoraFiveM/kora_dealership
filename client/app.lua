@@ -191,13 +191,13 @@ local function creatorView(state)
                 confirm = ('Permanently delete %s?'):format(dealer.label) } }, blocks = { { type = 'details', columns = 2, items = {
             { label = 'Type', value = dealer.job and ('Player-owned · ' .. dealer.job) or 'NPC-operated' },
             { label = 'Automatic cash offers', value = dealer.autoAccept and 'Enabled' or 'Disabled', tone = dealer.autoAccept and 'success' or 'warning' },
-            { label = 'Status', value = dealer.enabled and 'Open' or 'Closed' }, { label = 'Vehicles', value = #dealer.vehicles } } } } } },
+            { label = 'status', value = dealer.enabled and 'Open' or 'Closed' }, { label = 'Vehicles', value = #dealer.vehicles } } } } } },
         { id = 'zone', label = 'Zone', content = { title = 'Dealership zone', actions = {
             { id = 'dealer:pick-zone', label = dealer.zone.deleted and 'Create zone in world' or 'Replace zone in world', icon = 'scan', variant = 'primary', closeBeforeAction = true },
             { id = 'dealer:delete-zone', label = 'Delete zone', icon = 'trash-2', variant = 'destructive',
                 disabled = dealer.zone.deleted, confirm = 'Remove the customer zone? The dealership remains available to administrators.' } },
             blocks = { { type = 'details', columns = 2, items = {
-                { label = 'Status', value = dealer.zone.deleted and 'Removed' or 'Active', tone = dealer.zone.deleted and 'warning' or 'success' },
+                { label = 'status', value = dealer.zone.deleted and 'Removed' or 'Active', tone = dealer.zone.deleted and 'warning' or 'success' },
                 { label = 'Position', value = ('%.2f, %.2f, %.2f'):format(dealer.zone.coords.x, dealer.zone.coords.y, dealer.zone.coords.z) },
                 { label = 'Size', value = ('%.2f × %.2f × %.2f'):format(dealer.zone.size.x, dealer.zone.size.y, dealer.zone.size.z) },
                 { label = 'Rotation', value = ('%.1f°'):format(dealer.zone.rotation) }, { label = 'Interaction distance', value = dealer.zone.distance } } } } } },
