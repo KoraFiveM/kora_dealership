@@ -49,4 +49,15 @@ Config.dealerships = {
     },
 }
 
-if QB and QB.config and QB.config.adopt then Config = QB.config.adopt(Config) end
+if QB and QB.config and QB.config.adopt then
+    Config.account = QB.config.enum(Config.account, {
+        label = 'Payment account',
+        description = 'Selects the player money account used for dealership purchases and trade-in payments. Cash uses carried money, while Bank uses the player’s bank balance for both sides of the transaction.',
+        options = {
+            { value = 'cash', label = 'Cash' },
+            { value = 'bank', label = 'Bank' },
+            { value = 'crypto', label = 'Crypto' },
+        },
+    })
+    Config = QB.config.adopt(Config)
+end
