@@ -59,5 +59,9 @@ if QB and QB.config and QB.config.adopt then
             { value = 'crypto', label = 'Crypto' },
         },
     })
+    Config.dealerships = QB.config.map(Config.dealerships, QB.config.object({}), {
+        label = 'First-boot dealership seeds',
+        description = 'Defines dealership records offered as first-boot database seeds. Each row key is the stable dealership ID and its JSON object supplies label, job policy, zone, vehicles, price overrides, display placements, and spawn coordinates. Existing database dealerships are not overwritten by changing these authored seeds.',
+    })
     Config = QB.config.adopt(Config)
 end
