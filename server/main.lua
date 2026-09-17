@@ -6,6 +6,7 @@ CreateThread(function()
     if not QB.sql.ready(60000) then return print('^1[qbdealership]^7 qbsql was not ready; resource disabled.') end
     local _, migrationErr = QB.sql.migrateFiles(RESOURCE, {
         { version = 1, name = 'dealerships', file = 'sql/001_dealerships.sql' },
+        { version = 2, name = 'stock_model', file = 'sql/002_stock_model.sql' },
     })
     if migrationErr then return print(('^1[qbdealership]^7 migration failed: %s'):format(migrationErr)) end
     local loaded, loadErr = State.load()

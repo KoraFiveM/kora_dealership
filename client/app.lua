@@ -74,7 +74,7 @@ local function showroomContent(state, category)
     return { title = category,
         description = ('Browse %s · %d vehicle%s'):format(state.dealer.label, #cards, #cards == 1 and '' or 's'),
         scrollable = false, blocks = { { type = 'list', id = 'showroom-' .. category, layout = 'cards',
-            searchable = true, scrollable = true, searchPlaceholder = 'Search vehicles, brands, or models…',
+            searchable = true, scrollable = false, searchPlaceholder = 'Search vehicles, brands, or models…',
             pageSize = 9, items = cards, empty = 'No vehicles match this category.' } } }
 end
 
