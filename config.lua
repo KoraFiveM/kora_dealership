@@ -9,6 +9,8 @@ Config.platePrefix = 'DLR'
 Config.plateAttempts = 20
 
 -- Cash-only offers may complete without a manager after this many seconds.
+-- Automatic purchases must meet the current dealership sale price; trade-ins
+-- cannot exceed the shared base price or a lower dealership sale override.
 -- Set enabled false globally, or autoAccept false on one dealership, to make
 -- every offer require a human response. Offers containing terms are always
 -- manual regardless of these settings.

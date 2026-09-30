@@ -28,6 +28,21 @@ local function salePrice(dealer, model)
     return math.floor(dealer.prices[model] or basePrice), vehicle, basePrice
 end
 
+local function canAutomaticallyAccept(dealer, offer)
+    if not Config.AutoAccept.enabled or not dealer.autoAccept or offer.terms then return false end
+    local amount = tonumber(offer.amount)
+    if not amount or amount < 1 then return false end
+    if offer.direction == 'buy' then
+        local price = salePrice(dealer, offer.model)
+        return price ~= nil and amount >= price
+    end
+    if offer.direction ~= 'sell' then return false end
+    local vehicle, basePrice = sharedVehicle(offer.model)
+    if not vehicle then return false end
+    local ceiling = math.min(basePrice, dealer.prices[offer.model] or basePrice)
+    return amount <= ceiling
+end
+
 local function playerIdentity(src)
     local player = State.player(src)
     if not player or type(player.citizenid) ~= 'string' then return nil, 'Character unavailable.' end
@@ -291,7 +306,7 @@ function Api.submitOffer(src, dealerId, payload)
         local owned = requestedPlate and exports.qbcore:getByPlate(requestedPlate)
         if not owned or owned.citizenid ~= identity.citizenid or owned.model ~= offer.model then return false, 'Select a vehicle you own.' end
     end
-    local automatic = Config.AutoAccept.enabled and dealer.autoAccept and not offer.terms
+    local automatic = canAutomaticallyAccept(dealer, offer)
     local autoDelay = math.max(1, math.floor(tonumber(Config.AutoSellTime) or 1))
     local expiryDelay = math.max(autoDelay, math.floor(tonumber(Config.offerExpirySeconds) or autoDelay))
     local id, insertErr = QB.sql.insert([[INSERT INTO `qbdealership_offers`
@@ -349,8 +364,8 @@ function Api.processOffers()
         AND `terms` IS NULL AND `auto_at` IS NOT NULL AND `auto_at` <= NOW() LIMIT 25]]) or {}
     for _, row in ipairs(rows) do
         local dealer = State.get(row.dealership)
-        if not dealer or not dealer.autoAccept then
-            QB.sql.execute('UPDATE `qbdealership_offers` SET `auto_at` = NULL WHERE `id` = ?', { row.id })
+        if not dealer or not canAutomaticallyAccept(dealer, row) then
+            QB.sql.execute("UPDATE `qbdealership_offers` SET `auto_at` = NULL WHERE `id` = ? AND `status` = 'pending'", { row.id })
         elseif not settle(row, false) then
             QB.sql.execute('UPDATE `qbdealership_offers` SET `auto_at` = DATE_ADD(NOW(), INTERVAL ? SECOND) WHERE `id` = ?',
                 { Config.AutoAccept.retrySeconds, row.id })
