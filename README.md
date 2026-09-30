@@ -29,7 +29,7 @@ accounts; NPC dealerships do not use a society balance.
 ensure qbdealership
 ```
 
-The first start applies `sql/001_dealerships.sql` through qbsql and imports any
+Startup applies the packaged SQL migrations through qbsql and imports any
 missing definitions from `Config.dealerships`. Use `/dealership` to choose a
 dealership. Administrators also see Creator; job bosses see Management.
 
@@ -53,6 +53,13 @@ offer and again before automatic settlement. Offers outside them stay pending
 for manual review, including when prices change while an offer waits. Authorized
 manager approvals and customer acceptance of negotiated counteroffers retain
 their agreed amounts.
+
+Offer settlement saves a durable claim before payment or delivery. A normal
+operation refusal releases the claim for retry. An unexpected effect error or
+failed completion write retains it across restarts and logs the offer for
+administrator review; automatic retries, expiry and manager actions cannot
+replay a claimed offer. Migration 003 adds this flag without changing the
+existing offer statuses.
 
 The shared qblib placement editor is used for display/test-drive/purchase
 coordinates. Its instructional HUD owns rotation and vertical movement; placed

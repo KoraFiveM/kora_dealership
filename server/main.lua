@@ -7,6 +7,7 @@ CreateThread(function()
     local _, migrationErr = QB.sql.migrateFiles(RESOURCE, {
         { version = 1, name = 'dealerships', file = 'sql/001_dealerships.sql' },
         { version = 2, name = 'stock_model', file = 'sql/002_stock_model.sql' },
+        { version = 3, name = 'offer_settling', file = 'sql/003_offer_settling.sql' },
     })
     if migrationErr then return print(('^1[qbdealership]^7 migration failed: %s'):format(migrationErr)) end
     local loaded, loadErr = State.load()

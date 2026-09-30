@@ -34,4 +34,4 @@ client_scripts {
     'client/main.lua',
 }
 
-files { 'sql/001_dealerships.sql', 'sql/002_stock_model.sql' }
+files { 'sql/001_dealerships.sql', 'sql/002_stock_model.sql', 'sql/003_offer_settling.sql' }

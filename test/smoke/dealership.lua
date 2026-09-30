@@ -21,6 +21,8 @@ H.equal(custom.terms, '10 meals', 'non-cash terms are retained for manual review
 
 local callbacks, charges, created, inserted = {}, {}, {}, {}
 local offers, payouts, owned = {}, {}, {}
+local updateHook, claimError, completionError, releaseError, paymentHook, creationHook
+local acceptedUpdates = 0
 
 local function copyRow(row)
     if not row then return nil end
@@ -50,35 +52,80 @@ QB.sql.insert = function(_, params)
     inserted[#inserted + 1] = params
     local id = #inserted
     offers[id] = { id = id, dealership = params[1], direction = params[2], model = params[3], plate = params[4],
-        citizenid = params[5], amount = params[7], terms = params[8], status = 'pending', auto_at = params[9] == 1 or nil }
+        citizenid = params[5], amount = params[7], terms = params[8], status = 'pending', settling = 0, auto_at = params[9] == 1 or nil }
     for _, key in ipairs({ 'plate', 'amount', 'terms' }) do
         if offers[id][key] == QB.sql.NULL then offers[id][key] = nil end
     end
     return id
 end
 QB.sql.update = function(sql, params)
+    if updateHook then updateHook(sql, params) end
+    if sql:find("SET `status` = 'expired'", 1, true) then
+        local affected = 0
+        for _, row in pairs(offers) do
+            if row.expired and (row.status == 'pending' or row.status == 'countered')
+                and (not sql:find('`settling` = 0', 1, true) or (row.settling or 0) == 0) then
+                row.status = 'expired'
+                affected = affected + 1
+            end
+        end
+        return affected
+    end
+    if sql:find('SET `settling` = 1', 1, true) then
+        if claimError then return nil, claimError end
+        local row = offers[params[1]]
+        if not row or row.status ~= params[2] or (row.settling or 0) ~= 0 then return 0 end
+        row.settling = 1
+        return 1
+    end
+    if sql:find('SET `settling` = 0', 1, true) then
+        if releaseError then return nil, releaseError end
+        local row = offers[params[1]]
+        if not row or row.status ~= params[2] or row.settling ~= 1 then return 0 end
+        row.settling = 0
+        return 1
+    end
     if sql:find("SET `status` = 'accepted'", 1, true) then
+        if completionError then return nil, completionError end
         local row = offers[params[1]]
         if not row or row.status ~= params[2] then return 0 end
-        row.status = 'accepted'
+        if sql:find('AND `settling` = 1', 1, true) and row.settling ~= 1 then return 0 end
+        row.status, row.settling = 'accepted', 0
+        return 1
+    end
+    if sql:find("SET `status` = 'declined'", 1, true) then
+        local row = offers[params[1]]
+        if not row or row.status ~= 'pending' then return 0 end
+        if sql:find('AND `settling` = 0', 1, true) and (row.settling or 0) ~= 0 then return 0 end
+        row.status = 'declined'
         return 1
     end
     if sql:find("SET `status` = 'countered'", 1, true) then
         local row = offers[params[3]]
         if not row or row.status ~= 'pending' then return 0 end
+        if sql:find('AND `settling` = 0', 1, true) and (row.settling or 0) ~= 0 then return 0 end
         row.status, row.counter_amount, row.counter_terms, row.auto_at = 'countered', params[1], params[2], nil
         return 1
     end
     return 0
 end
 QB.sql.execute = function(sql, params)
-    if sql:find('SET `auto_at` = NULL', 1, true) then offers[params[1]].auto_at = nil end
+    local id = sql:find('DATE_ADD', 1, true) and params[2] or params[1]
+    local row = offers[id]
+    if not row then return true end
+    if sql:find("AND `status` = 'pending'", 1, true) and row.status ~= 'pending' then return true end
+    if sql:find('AND `settling` = 0', 1, true) and (row.settling or 0) ~= 0 then return true end
+    if sql:find('SET `auto_at` = NULL', 1, true) then row.auto_at = nil
+    elseif sql:find('DATE_ADD', 1, true) then row.auto_at, row.retries = true, (row.retries or 0) + 1 end
     return true
 end
-QB.sql.query = function()
+QB.sql.query = function(sql)
     local rows = {}
     for _, row in pairs(offers) do
-        if row.status == 'pending' and row.auto_at and not row.terms then rows[#rows + 1] = copyRow(row) end
+        if row.status == 'pending' and row.auto_at and not row.terms
+            and (not sql:find('`settling` = 0', 1, true) or (row.settling or 0) == 0) then
+            rows[#rows + 1] = copyRow(row)
+        end
     end
     return rows
 end
@@ -98,9 +145,14 @@ exports = {
         getByPlate = function(_, plate) return owned[plate] end,
         createVehicle = function(_, citizenid, model, plate)
             created[#created + 1] = { citizenid = citizenid, model = model, plate = plate }
+            if creationHook then creationHook() end
             return true
         end,
         removeMoney = function(_, src, account, amount)
+            if paymentHook then
+                local paid, err = paymentHook()
+                if paid == false then return false, err end
+            end
             charges[#charges + 1] = { src = src, account = account, amount = amount }
             return true
         end,
@@ -113,7 +165,9 @@ exports = {
 }
 setmetatable(exports, { __call = function() end })
 GetResourceState = function() return 'missing' end
-TriggerClientEvent = function() end
+TriggerClientEvent = function(event, _, _, status)
+    if event == 'qbdealership:client:offerUpdated' and status == 'accepted' then acceptedUpdates = acceptedUpdates + 1 end
+end
 AddEventHandler = function() end
 QB.notify = { send = function() end }
 
@@ -237,6 +291,177 @@ H.equal(offers[counterBuy.id].auto_at, nil, 'counteroffers still disable automat
 H.ok(type(Dealership.api.acceptCounter(1, counterBuy.id)) == 'table', 'the customer may explicitly accept a negotiated counteroffer')
 H.equal(charges[#charges].amount, 1, 'counteroffer settlement keeps its explicitly negotiated amount')
 
+local function buyOffer(countered)
+    offers = {}
+    local submitted = assert(Dealership.api.submitOffer(1, 'pdm', { direction = 'buy', model = 'sultan', amount = 15000 }))
+    if countered then assert(Dealership.api.manageOffer(99, submitted.id, 'counter', { amount = 9000 })) end
+    return submitted.id
+end
+
+local function acceptOffer(id, countered)
+    if countered then return Dealership.api.acceptCounter(1, id) end
+    return Dealership.api.manageOffer(99, id, 'accept')
+end
+
+offers = {}
+local unapproved = assert(Dealership.api.submitOffer(1, 'pdm', { direction = 'buy', model = 'sultan', amount = 1 }))
+workerCharges, workerCreated = #charges, #created
+H.equal(Dealership.api.acceptCounter(1, unapproved.id), false, 'a customer cannot accept their own pending low-price offer as a counteroffer')
+H.equal(#charges, workerCharges, 'pending counter acceptance cannot charge the customer')
+H.equal(#created, workerCreated, 'pending counter acceptance cannot deliver a vehicle')
+H.equal(offers[unapproved.id].status, 'pending', 'unapproved pending offers remain available for a manager')
+H.ok(type(Dealership.api.manageOffer(99, unapproved.id, 'accept')) == 'table', 'an authorized manager still accepts pending offers')
+
+for _, countered in ipairs({ false, true }) do
+    local id = buyOffer(countered)
+    workerCharges, workerCreated = #charges, #created
+    claimError = 'database claim unavailable'
+    H.equal(acceptOffer(id, countered), false, 'a failed durable claim refuses settlement')
+    H.equal(#charges, workerCharges, 'a failed claim moves no money')
+    H.equal(#created, workerCreated, 'a failed claim delivers no vehicle')
+    H.equal(offers[id].settling, 0, 'failed claims retain an unclaimed offer')
+    claimError = nil
+    paymentHook = function()
+        H.equal(offers[id].settling, 1, 'the persisted claim exists before the payment export runs')
+        return false, 'Insufficient funds.'
+    end
+    H.equal(acceptOffer(id, countered), false, 'a normal payment refusal is returned to the caller')
+    H.equal(offers[id].status, countered and 'countered' or 'pending', 'a known failure preserves the original offer status')
+    H.equal(offers[id].settling, 0, 'a known failure releases its durable claim')
+    H.equal(#charges, workerCharges, 'a refused payment moves no money')
+    paymentHook = nil
+    H.ok(type(acceptOffer(id, countered)) == 'table', 'a normally failed offer can be retried')
+    H.equal(offers[id].status, 'accepted', 'successful settlement finalizes the claimed offer')
+    H.equal(offers[id].settling, 0, 'accepted offers release the flag with their final status')
+    H.equal(charges[#charges].amount, countered and 9000 or 15000, 'settlement preserves the selected negotiated amount')
+    H.equal(#charges, workerCharges + 1, 'a successful retry charges once')
+    H.equal(#created, workerCreated + 1, 'a successful retry delivers once')
+    H.equal(acceptOffer(id, countered), false, 'an accepted offer cannot settle twice')
+end
+
+local changed = buyOffer(false)
+workerCharges, workerCreated = #charges, #created
+updateHook = function(sql)
+    if not sql:find('SET `settling` = 1', 1, true) then return end
+    updateHook = nil
+    assert(Dealership.api.manageOffer(99, changed, 'counter', { amount = 10000 }))
+end
+Dealership.api.processOffers()
+updateHook = nil
+H.equal(offers[changed].status, 'countered', 'a manager counter that wins before the claim is preserved')
+H.equal(#charges, workerCharges, 'a stale worker snapshot losing the claim does not charge')
+H.equal(#created, workerCreated, 'a stale worker snapshot losing the claim does not deliver')
+H.equal(offers[changed].auto_at, nil, 'a lost claim does not reschedule a counteroffer')
+
+for _, countered in ipairs({ false, true }) do
+    local id = buyOffer(countered)
+    workerCharges, workerCreated = #charges, #created
+    local previousUpdates = acceptedUpdates
+    completionError = 'database completion unavailable'
+    if countered then acceptOffer(id, true) else Dealership.api.processOffers() end
+    H.equal(#charges, workerCharges + 1, 'completion failure follows exactly one payment')
+    H.equal(#created, workerCreated + 1, 'completion failure follows exactly one delivery')
+    H.equal(offers[id].status, countered and 'countered' or 'pending', 'completion failure preserves the existing public status')
+    H.equal(offers[id].settling, 1, 'completion failure retains the durable claim')
+    H.equal(acceptedUpdates, previousUpdates, 'completion failure never broadcasts a confirmed accepted status')
+    completionError = nil
+    Dealership.api.processOffers()
+    H.equal(offers[id].retries, nil, 'claimed offers are never automatically requeued')
+    H.equal(acceptOffer(id, countered), false, 'manual acceptance cannot replay a protected offer')
+    H.equal(Dealership.api.manageOffer(99, id, 'counter', { amount = 1 }), false, 'claimed offers cannot be countered')
+    H.equal(Dealership.api.manageOffer(99, id, 'decline'), false, 'claimed offers cannot be declined')
+    dofile('server/dealership.lua')
+    dofile('server/callbacks.lua')
+    Dealership.api.processOffers()
+    H.equal(acceptOffer(id, countered), false, 'module reload cannot replay a persisted claim')
+    H.equal(#charges, workerCharges + 1, 'worker and manual retries never repeat a completed payment')
+    H.equal(#created, workerCreated + 1, 'worker and manual retries never repeat a completed delivery')
+    offers[id].expired = true
+    Dealership.api.processOffers()
+    H.equal(offers[id].status, countered and 'countered' or 'pending', 'claimed offers never autoexpire')
+end
+
+local uncertain = buyOffer(false)
+workerCharges, workerCreated = #charges, #created
+creationHook = function() error('vehicle export failed after its write') end
+local handled, result = pcall(acceptOffer, uncertain, false)
+creationHook = nil
+H.equal(handled, true, 'an unexpected effect exception is handled at the settlement boundary')
+H.equal(result, false, 'an unexpected effect exception reports failed settlement')
+H.equal(offers[uncertain].settling, 1, 'an ambiguous export error retains its durable claim')
+Dealership.api.processOffers()
+H.equal(acceptOffer(uncertain, false), false, 'an ambiguous effect error cannot be replayed manually')
+H.equal(#charges, workerCharges + 1, 'an ambiguous export error does not repeat payment')
+H.equal(#created, workerCreated + 1, 'an ambiguous export error does not repeat delivery')
+
+local releaseFailed = buyOffer(false)
+paymentHook = function() return false, 'Insufficient funds.' end
+releaseError = 'database release unavailable'
+Dealership.api.processOffers()
+paymentHook, releaseError = nil, nil
+H.equal(offers[releaseFailed].settling, 1, 'failed release writes leave a failed offer protected')
+H.equal(offers[releaseFailed].retries, nil, 'a failed release write cannot be automatically requeued')
+
+local beforePayment = buyOffer(false)
+workerCharges = #charges
+paymentHook = function() error('payment export unavailable before payment') end
+handled, result = pcall(acceptOffer, beforePayment, false)
+H.equal(handled, true, 'a thrown payment export is handled')
+H.equal(result, false, 'a thrown payment export reports failure')
+paymentHook = nil
+H.equal(#charges, workerCharges, 'the test payment exception happened before any debit')
+-- Simulate an operator clearing a claim after confirming that no effects occurred.
+offers[beforePayment].settling = 0
+H.ok(type(acceptOffer(beforePayment, false)) == 'table', 'an effect exception clears the in-memory guard')
+
+local function pausedCounter(id, amount)
+    local original = Dealership.state.canManage
+    local thread
+    Dealership.state.canManage = function(src, dealership)
+        if coroutine.running() == thread then coroutine.yield('manager snapshot ready') end
+        return original(src, dealership)
+    end
+    thread = coroutine.create(function() return Dealership.api.manageOffer(99, id, 'counter', { amount = amount }) end)
+    local ok, marker = coroutine.resume(thread)
+    assert(ok and marker == 'manager snapshot ready')
+    Dealership.state.canManage = original
+    return thread
+end
+
+local racing = buyOffer(false)
+local manager = pausedCounter(racing, 1)
+workerCharges, workerCreated = #charges, #created
+creationHook = function()
+    local ok, countered = coroutine.resume(manager)
+    H.equal(ok, true, 'the stale manager counter reaches its conditional update')
+    H.equal(countered, false, 'the stale manager counter cannot change a claimed pending row')
+    H.equal(Dealership.api.manageOffer(99, racing, 'decline'), false, 'a manager cannot decline during delivery')
+end
+Dealership.api.processOffers()
+creationHook = nil
+H.equal(offers[racing].status, 'accepted', 'settlement wins the manager counter interleaving')
+H.equal(Dealership.api.acceptCounter(1, racing), false, 'the losing counter cannot permit another purchase')
+H.equal(#charges, workerCharges + 1, 'the manager race charges exactly once')
+H.equal(#created, workerCreated + 1, 'the manager race delivers exactly once')
+
+local retryCounter = buyOffer(false)
+manager = pausedCounter(retryCounter, 1)
+workerCharges, workerCreated = #charges, #created
+paymentHook = function() return false, 'Insufficient funds.' end
+Dealership.api.processOffers()
+paymentHook = nil
+H.equal(offers[retryCounter].settling, 0, 'a normal worker failure releases the persisted claim')
+H.equal(offers[retryCounter].retries, 1, 'a normal worker failure retains the configured retry behavior')
+local resumed, countered = coroutine.resume(manager)
+H.equal(resumed, true, 'a stale manager snapshot resumes after a known failure')
+H.equal(countered, true, 'the restored pending offer may still receive a manager counter')
+H.equal(offers[retryCounter].auto_at, nil, 'the later manager counter removes the restored retry schedule')
+Dealership.api.processOffers()
+H.equal(#charges, workerCharges, 'restoration and a later counter do not charge the old offer')
+H.ok(type(Dealership.api.acceptCounter(1, retryCounter)) == 'table', 'the customer can accept the later authorized counter')
+H.equal(charges[#charges].amount, 1, 'the later counter preserves its authorized price')
+H.equal(#created, workerCreated + 1, 'the later counter delivers exactly once')
+
 for name, callback in pairs(callbacks) do
     H.ok(callback.options.rateLimit ~= nil, name .. ' is rate-limited')
 end
@@ -246,5 +471,52 @@ H.ok(callbacks['qbdealership:server:saveDealership'] ~= nil, 'creator save callb
 local clientSource = assert(io.open('client/world.lua', 'r')):read('*a')
 H.ok(clientSource:find("QB.placement.start('asbo')", 1, true) ~= nil, 'coordinate picking uses the shared vehicle placer')
 H.ok(clientSource:find('SetVehicleOnGroundProperly', 1, true) ~= nil, 'display and picker vehicles use the FiveM ground native')
+
+dofile('server/state.lua')
+Dealership.state.dealerships.pdm = dealer
+QB.sql.scalar = function(sql)
+    if sql:find('FROM `qbdealership_stock`', 1, true) then return 0 end
+    local count = 0
+    for _, row in pairs(offers) do
+        if sql:find("'" .. row.status .. "'", 1, true) then count = count + 1 end
+    end
+    return count
+end
+for _, status in ipairs({ 'pending', 'countered' }) do
+    offers = { { status = status, settling = 1 } }
+    H.equal(Dealership.state.remove('pdm'), false, 'a durable claim prevents dealership deletion')
+    H.ok(Dealership.state.dealerships.pdm ~= nil, 'the dealership containing a claimed offer remains available')
+end
+
+local threads, packagedFiles = {}, {}
+CreateThread = function(fn) threads[#threads + 1] = fn end
+RegisterNetEvent = function() end
+GetCurrentResourceName = function() return 'qbdealership' end
+QB.sql.ready = function() return true end
+QB.sql.migrateFiles = function(resource, migrations)
+    H.equal(resource, 'qbdealership', 'startup registers migrations for the current resource')
+    H.equal(#migrations, 3, 'startup retains the old migrations and appends the claim migration')
+    H.equal(migrations[3].version, 3, 'the claim migration uses the next additive version')
+    H.equal(migrations[3].file, 'sql/003_offer_settling.sql', 'startup loads the packaged claim migration')
+    return { ran = 0, total = 3 }
+end
+Dealership.state.load = function() return true end
+Dealership.state.broadcast = function() end
+Dealership.state.ready = false
+dofile('server/main.lua')
+threads[1]()
+H.equal(Dealership.state.ready, true, 'startup still initializes the resource after migrations')
+for _, name in ipairs({ 'fx_version', 'game', 'lua54', 'name', 'author', 'version', 'description',
+    'dependency', 'shared_scripts', 'server_scripts', 'client_scripts' }) do
+    _G[name] = function() end
+end
+files = function(paths) packagedFiles = paths end
+dofile('fxmanifest.lua')
+H.equal(packagedFiles[3], 'sql/003_offer_settling.sql', 'the resource package includes migration 003')
+for _, path in ipairs(packagedFiles) do
+    local file = assert(io.open(path, 'r'))
+    file:close()
+    H.ok(true, path .. ' exists in the resource package')
+end
 
 H.finish()

@@ -199,31 +199,53 @@ local function offerRow(id)
 end
 
 local function settle(row, useCounter)
-    if not row or (row.status ~= 'pending' and not (useCounter and row.status == 'countered')) then
+    local expectedStatus = useCounter and 'countered' or 'pending'
+    if not row or row.status ~= expectedStatus then
         return false, 'Offer is no longer pending.'
     end
-    if settlementLocks[row.id] then return false, 'Offer settlement is already in progress.' end
-    settlementLocks[row.id] = true
+    if tonumber(row.settling) == 1 or settlementLocks[row.id] then return false, 'Offer settlement is already in progress.' end
     local dealer = State.get(row.dealership)
+    if not dealer then return false, 'Dealership no longer exists.' end
     local player = exports.qbcore:getPlayerByCitizenId(row.citizenid)
-    local amount = tonumber(useCounter and row.counter_amount or row.amount) or 0
-    local result, err
-    if not dealer then err = 'Dealership no longer exists.'
-    elseif not player or not player.source then err = 'Customer must be online to complete the offer.'
-    elseif row.direction == 'buy' then result, err = purchaseFor(player.source, dealer, row.model, amount, true)
-    else result, err = buyPersonalVehicle(player.source, dealer, row.model, row.plate, amount) end
-    if result then
-        local affected, updateErr = QB.sql.update([[UPDATE `qbdealership_offers` SET `status` = 'accepted'
-            WHERE `id` = ? AND `status` = ?]], { row.id, row.status })
-        if updateErr or affected ~= 1 then
-            print(('^1[qbdealership]^7 offer %s settled but status update failed: %s'):format(row.id, tostring(updateErr)))
-        end
-        notifyPlayer(player.source, dealer, ('Your %s offer for %s was accepted.'):format(
-            row.direction == 'buy' and 'purchase' or 'sale', row.model), 'success')
-        TriggerClientEvent('qbdealership:client:offerUpdated', -1, row.id, 'accepted')
+    if not player or not player.source then return false, 'Customer must be online to complete the offer.' end
+    settlementLocks[row.id] = true
+    -- Claim before effects so a restart or failed completion write cannot replay them.
+    local claimed, claimErr = QB.sql.update([[UPDATE `qbdealership_offers` SET `settling` = 1
+        WHERE `id` = ? AND `status` = ? AND `settling` = 0]], { row.id, expectedStatus })
+    if claimErr or claimed ~= 1 then
+        settlementLocks[row.id] = nil
+        return false, claimErr or 'Offer changed.'
     end
+    local amount = tonumber(useCounter and row.counter_amount or row.amount) or 0
+    local ok, result, err
+    if row.direction == 'buy' then ok, result, err = pcall(purchaseFor, player.source, dealer, row.model, amount, true)
+    else ok, result, err = pcall(buyPersonalVehicle, player.source, dealer, row.model, row.plate, amount) end
+    if not ok then
+        settlementLocks[row.id] = nil
+        print(('^1[qbdealership]^7 offer %s settlement errored; claim retained for review: %s'):format(row.id, tostring(result)))
+        return false, 'Offer settlement failed; contact a server administrator.'
+    end
+    if not result then
+        local released, releaseErr = QB.sql.update([[UPDATE `qbdealership_offers` SET `settling` = 0
+            WHERE `id` = ? AND `status` = ? AND `settling` = 1]], { row.id, expectedStatus })
+        settlementLocks[row.id] = nil
+        if releaseErr or released ~= 1 then
+            print(('^1[qbdealership]^7 offer %s failed but claim release failed: %s'):format(row.id, tostring(releaseErr or 'Offer changed.')))
+        end
+        return false, err
+    end
+    local affected, updateErr = QB.sql.update([[UPDATE `qbdealership_offers` SET `status` = 'accepted', `settling` = 0
+        WHERE `id` = ? AND `status` = ? AND `settling` = 1]], { row.id, expectedStatus })
     settlementLocks[row.id] = nil
-    return result or false, err
+    if updateErr or affected ~= 1 then
+        print(('^1[qbdealership]^7 offer %s settled but status update failed; claim retained for review: %s')
+            :format(row.id, tostring(updateErr or 'Offer changed.')))
+        return result, err
+    end
+    notifyPlayer(player.source, dealer, ('Your %s offer for %s was accepted.'):format(
+        row.direction == 'buy' and 'purchase' or 'sale', row.model), 'success')
+    TriggerClientEvent('qbdealership:client:offerUpdated', -1, row.id, 'accepted')
+    return result, err
 end
 
 function Api.catalogue(src, dealerId)
@@ -325,8 +347,9 @@ function Api.manageOffer(src, id, action, payload)
     if not dealer or not State.canManage(src, dealer) then return false, 'You do not manage this dealership.' end
     if action == 'accept' then return settle(row, false) end
     if row.status ~= 'pending' then return false, 'Offer is no longer pending.' end
+    if tonumber(row.settling) == 1 then return false, 'Offer settlement is already in progress.' end
     if action == 'decline' then
-        local affected, err = QB.sql.update("UPDATE `qbdealership_offers` SET `status` = 'declined' WHERE `id` = ? AND `status` = 'pending'", { row.id })
+        local affected, err = QB.sql.update("UPDATE `qbdealership_offers` SET `status` = 'declined' WHERE `id` = ? AND `status` = 'pending' AND `settling` = 0", { row.id })
         if err or affected ~= 1 then return false, err or 'Offer changed.' end
         local customer = exports.qbcore:getPlayerByCitizenId(row.citizenid)
         if customer and customer.source then notifyPlayer(customer.source, dealer, ('Your offer for %s was declined.'):format(row.model), 'error') end
@@ -338,7 +361,7 @@ function Api.manageOffer(src, id, action, payload)
             amount = payload and payload.amount, terms = payload and payload.terms })
         if not counter then return false, counterErr end
         local affected, err = QB.sql.update([[UPDATE `qbdealership_offers` SET `status` = 'countered',
-            `counter_amount` = ?, `counter_terms` = ?, `auto_at` = NULL WHERE `id` = ? AND `status` = 'pending']],
+            `counter_amount` = ?, `counter_terms` = ?, `auto_at` = NULL WHERE `id` = ? AND `status` = 'pending' AND `settling` = 0]],
             { counter.amount or QB.sql.NULL, counter.terms or QB.sql.NULL, row.id })
         if err or affected ~= 1 then return false, err or 'Offer changed.' end
         local customer = exports.qbcore:getPlayerByCitizenId(row.citizenid)
@@ -357,17 +380,17 @@ function Api.acceptCounter(src, id)
 end
 
 function Api.processOffers()
-    local expired = QB.sql.update("UPDATE `qbdealership_offers` SET `status` = 'expired' WHERE `status` IN ('pending','countered') AND `expires_at` <= NOW()")
+    local expired = QB.sql.update("UPDATE `qbdealership_offers` SET `status` = 'expired' WHERE `status` IN ('pending','countered') AND `settling` = 0 AND `expires_at` <= NOW()")
     if expired and expired > 0 then TriggerClientEvent('qbdealership:client:offerUpdated', -1, 0, 'expired') end
     if not Config.AutoAccept.enabled then return end
-    local rows = QB.sql.query([[SELECT * FROM `qbdealership_offers` WHERE `status` = 'pending'
+    local rows = QB.sql.query([[SELECT * FROM `qbdealership_offers` WHERE `status` = 'pending' AND `settling` = 0
         AND `terms` IS NULL AND `auto_at` IS NOT NULL AND `auto_at` <= NOW() LIMIT 25]]) or {}
     for _, row in ipairs(rows) do
         local dealer = State.get(row.dealership)
         if not dealer or not canAutomaticallyAccept(dealer, row) then
-            QB.sql.execute("UPDATE `qbdealership_offers` SET `auto_at` = NULL WHERE `id` = ? AND `status` = 'pending'", { row.id })
+            QB.sql.execute("UPDATE `qbdealership_offers` SET `auto_at` = NULL WHERE `id` = ? AND `status` = 'pending' AND `settling` = 0", { row.id })
         elseif not settle(row, false) then
-            QB.sql.execute('UPDATE `qbdealership_offers` SET `auto_at` = DATE_ADD(NOW(), INTERVAL ? SECOND) WHERE `id` = ?',
+            QB.sql.execute("UPDATE `qbdealership_offers` SET `auto_at` = DATE_ADD(NOW(), INTERVAL ? SECOND) WHERE `id` = ? AND `status` = 'pending' AND `settling` = 0",
                 { Config.AutoAccept.retrySeconds, row.id })
         end
     end
