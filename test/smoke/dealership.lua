@@ -468,6 +468,21 @@ end
 H.ok(callbacks['qbdealership:server:manageOffer'] ~= nil, 'management offer callback is registered')
 H.ok(callbacks['qbdealership:server:saveDealership'] ~= nil, 'creator save callback is registered')
 
+local previousAdmin = Dealership.state.isAdmin
+Dealership.state.isAdmin = function() return true end
+local savedDealer
+Dealership.state.persist = function(value) savedDealer = value; return true end
+GetPlayerRoutingBucket = function(src) assert(src == 99); return 27 end
+local payload = { id = 'new', label = 'New', vehicles = { 'sultan' },
+    zone = { coords = { x = 1, y = 2, z = 3 }, size = { x = 10, y = 10, z = 4 } } }
+H.ok(Dealership.api.saveDealership(99, payload), 'fresh creator zone saves without a client bucket native')
+H.equal(savedDealer.zone.bucket, 27, 'server resolves the creator routing bucket')
+H.equal(payload.zone.bucket, nil, 'the submitted zone remains unchanged')
+payload.zone.bucket = 12
+H.ok(Dealership.api.saveDealership(99, payload), 'editing an existing zone succeeds')
+H.equal(savedDealer.zone.bucket, 12, 'explicit existing buckets are preserved')
+Dealership.state.isAdmin = previousAdmin
+
 local clientSource = assert(io.open('client/world.lua', 'r')):read('*a')
 H.ok(clientSource:find("QB.placement.start('asbo')", 1, true) ~= nil, 'coordinate picking uses the shared vehicle placer')
 H.ok(clientSource:find('SetVehicleOnGroundProperly', 1, true) ~= nil, 'display and picker vehicles use the FiveM ground native')

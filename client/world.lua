@@ -69,7 +69,6 @@ function World.pickZone()
         size = { x = result.opts.size.x, y = result.opts.size.y, z = result.opts.size.z },
         rotation = result.opts.rotation or 0.0,
         distance = 3.0,
-        bucket = GetEntityRoutingBucket(PlayerPedId()),
     }
 end
 

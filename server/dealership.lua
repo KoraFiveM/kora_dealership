@@ -482,6 +482,9 @@ function Api.saveDealership(src, payload)
     if type(payload) ~= 'table' then return false, 'Invalid dealership.' end
     local dealer, err = Schema.normaliseDealership(payload)
     if not dealer then return false, err end
+    if type(payload.zone) == 'table' and payload.zone.bucket == nil then
+        dealer.zone.bucket = GetPlayerRoutingBucket(src)
+    end
     if dealer.job and not exports.qbcore:getShared('jobs', dealer.job) then return false, 'That job does not exist.' end
     for _, model in ipairs(dealer.vehicles) do
         if not sharedVehicle(model) then return false, ('Unknown or unpriced vehicle: %s'):format(model) end
