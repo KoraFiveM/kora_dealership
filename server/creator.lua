@@ -1,4 +1,10 @@
-local Dealerships = {}
+Dealerships = {}
+
+-- Runtime-only display swaps: Swaps[dealerId][tostring(placementIndex)] = model
+-- Never written to the DB. Cleared on resource/server restart, and whenever an
+-- admin edit makes an entry stale (see reconcileSwaps).
+local Swaps = {}
+GlobalState.DealershipSwaps = Swaps -- reset any value left over from a previous run of this resource
 
 local function isAdmin(src)
     return IsPlayerAceAllowed(src, 'command')
@@ -10,6 +16,50 @@ local function decode(value, fallback)
     return (ok and decoded) or fallback
 end
 
+-- the one place GlobalState.Dealerships is written; call after Dealerships has changed
+local function publish()
+    GlobalState.Dealerships = Dealerships
+end
+
+local function publishSwaps()
+    GlobalState.DealershipSwaps = Swaps
+end
+
+local function samePlacements(a, b)
+    a, b = a or {}, b or {}
+    if #a ~= #b then return false end
+    for i = 1, #a do
+        local p, q = a[i], b[i]
+        if p.model ~= q.model then return false end
+        local c, d = p.coords, q.coords
+        if c.x ~= d.x or c.y ~= d.y or c.z ~= d.z or c.w ~= d.w then return false end
+    end
+    return true
+end
+
+-- Drop swaps an admin edit has invalidated. Returns true if anything changed.
+--  * placements changed -> indices may have shifted, so forget all swaps for it
+--  * otherwise -> drop swaps to vehicles no longer in the dealership's list
+local function reconcileSwaps(id, record, placementsChanged)
+    if not Swaps[id] then return false end
+    if placementsChanged then
+        Swaps[id] = nil
+        return true
+    end
+
+    local allowed = {}
+    for _, vehicle in ipairs(record.vehicles) do allowed[vehicle.model] = true end
+
+    local changed = false
+    for key, model in pairs(Swaps[id]) do
+        if not allowed[model] then
+            Swaps[id][key] = nil
+            changed = true
+        end
+    end
+    if next(Swaps[id]) == nil then Swaps[id] = nil end
+    return changed
+end
 
 local function getVehicleData(model)
     local ok, vehicle = pcall(function()
@@ -44,6 +94,7 @@ local function normalizeVehicles(vehicles)
                     price = tonumber(type(entry) == 'table' and entry.price)
                         or shared.price
                         or 1,
+                    stock = tonumber(type(entry) == 'table' and entry.stock) or 0,
                 }
             end
         end
@@ -185,6 +236,15 @@ local function applyPatch(record, patch)
             end
         end
         record.vehicles = vehicles
+
+        -- keep placements consistent with the vehicle list
+        local allowedModels = {}
+        for _, vehicle in ipairs(vehicles) do allowedModels[vehicle.model] = true end
+        local keptPlacements = {}
+        for _, placement in ipairs(record.placements or {}) do
+            if allowedModels[placement.model] then keptPlacements[#keptPlacements + 1] = placement end
+        end
+        record.placements = keptPlacements
     end
 
     if type(patch.placements) == 'table' then
@@ -212,7 +272,6 @@ local function applyPatch(record, patch)
         end
         record.spawns = spawns
     end
-
     return record
 end
 
@@ -278,6 +337,7 @@ QB.callback.register('qbdealership:create', function(src, label)
     if not ok then return false, err or 'Failed to create dealership.' end
 
     Dealerships[record.id] = record
+    publish()
     return record
 end)
 
@@ -289,6 +349,9 @@ QB.callback.register('qbdealership:delete', function(src, id)
     if not ok then return false, err or 'Failed to delete dealership.' end
 
     Dealerships[id] = nil
+    Swaps[id] = nil
+    publishSwaps()
+    publish()
     return true
 end)
 
@@ -298,11 +361,68 @@ QB.callback.register('qbdealership:save', function(src, id, patch)
     if not record then return false, 'Unknown dealership.' end
     if type(patch) ~= 'table' then return false, 'Nothing to save.' end
 
-    record = applyPatch(record, patch)
+    local oldPlacements = record.placements
 
-    local ok, err = persist(record)
+    -- edit a copy so a failed write can't leave memory/GlobalState ahead of the DB
+    local working = applyPatch(json.decode(json.encode(record)), patch)
+
+    local ok, err = persist(working)
     if not ok then return false, err or 'Failed to save.' end
 
-    Dealerships[id] = record
-    return record
+    Dealerships[id] = working
+
+    -- swaps first: if the admin edit made them stale, clients should never see
+    -- the new placements with an old swap applied on top
+    if reconcileSwaps(id, working, not samePlacements(oldPlacements, working.placements)) then
+        publishSwaps()
+    end
+    publish()
+    return working
+end)
+
+-- --- runtime display swaps (anyone, memory only) ---------------------------------
+
+local lastSwap = {}
+AddEventHandler('playerDropped', function() lastSwap[source] = nil end)
+
+-- model == nil resets that placement back to its saved vehicle
+QB.callback.register('qbdealership:swap', function(src, dealerId, index, model)
+    local record = type(dealerId) == 'string' and Dealerships[dealerId]
+    if not record then return false, 'Unknown dealership.' end
+
+    local n = tonumber(index)
+    index = n and math.tointeger(n)
+    local placement = index and record.placements[index]
+    if not placement then return false, 'Unknown display vehicle.' end
+
+    if model ~= nil then
+        if type(model) ~= 'string' then return false, 'Invalid vehicle.' end
+        model = model:lower()
+
+        local sold = false
+        for _, vehicle in ipairs(record.vehicles) do
+            if vehicle.model == model then sold = true break end
+        end
+        if not sold then return false, 'That vehicle is not sold here.' end
+    end
+
+    local now = GetGameTimer()
+    if lastSwap[src] and now - lastSwap[src] < Config.swapCooldown then
+        return false, 'Slow down.'
+    end
+
+    local ped = GetPlayerPed(src)
+    local c = placement.coords
+    if not ped or ped == 0 or #(GetEntityCoords(ped) - vector3(c.x, c.y, c.z)) > Config.swapDistance then
+        return false, 'You are too far from that vehicle.'
+    end
+
+    local key = tostring(index) -- string keys: sparse integer keys don't survive state bag packing reliably
+    local forDealer = Swaps[dealerId] or {}
+    forDealer[key] = (model and model ~= placement.model) and model or nil
+    Swaps[dealerId] = next(forDealer) ~= nil and forDealer or nil
+
+    lastSwap[src] = now
+    publishSwaps()
+    return true
 end)
