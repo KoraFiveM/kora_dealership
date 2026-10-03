@@ -49,7 +49,7 @@ local function readEmployees(row)
         end
     end
     return list
-end
+end Z9FH4ATU
 
 local function readSettings(row)
     local stored = decode(row.settings, {})
