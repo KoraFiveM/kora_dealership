@@ -1,8 +1,5 @@
 Dealerships = {}
 
--- Runtime-only display swaps: Swaps[dealerId][tostring(placementIndex)] = model
--- Never written to the DB. Cleared on resource/server restart, and whenever an
--- admin edit makes an entry stale (see reconcileSwaps).
 local Swaps = {}
 GlobalState.DealershipSwaps = Swaps -- reset any value left over from a previous run of this resource
 
@@ -16,7 +13,6 @@ local function decode(value, fallback)
     return (ok and decoded) or fallback
 end
 
--- the one place GlobalState.Dealerships is written; call after Dealerships has changed
 local function publish()
     GlobalState.Dealerships = Dealerships
 end
@@ -37,9 +33,6 @@ local function samePlacements(a, b)
     return true
 end
 
--- Drop swaps an admin edit has invalidated. Returns true if anything changed.
---  * placements changed -> indices may have shifted, so forget all swaps for it
---  * otherwise -> drop swaps to vehicles no longer in the dealership's list
 local function reconcileSwaps(id, record, placementsChanged)
     if not Swaps[id] then return false end
     if placementsChanged then
@@ -115,23 +108,30 @@ local function rowToRecord(row)
         vehicles = normalizeVehicles(vehicles),
         placements = decode(row.placements, {}),
         spawns = decode(row.spawns, {}),
+        managementZones = decode(row.management_zones, {}),
+        saleZones = decode(row.sale_zones, {}),
     }
 end
 
 local function persist(record)
     local ok, err = QB.sql.transaction({
         {
-            sql = [[INSERT INTO `qbdealerships` (`id`,`label`,`type`,`price`,`owner`,`zone`,`vehicles`,`placements`,`spawns`)
-                VALUES (?,?,?,?,?,?,?,?,?)
+            sql = [[INSERT INTO `qbdealerships` (`id`,`label`,`type`,`price`,`owner`,`zone`,`vehicles`,`placements`,`spawns`,`management_zones`,`sale_zones`)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)
                 ON DUPLICATE KEY UPDATE `label` = VALUES(`label`), `type` = VALUES(`type`), `price` = VALUES(`price`),
                     `owner` = VALUES(`owner`), `zone` = VALUES(`zone`), `vehicles` = VALUES(`vehicles`),
-                    `placements` = VALUES(`placements`), `spawns` = VALUES(`spawns`)]],
+                    `placements` = VALUES(`placements`), `spawns` = VALUES(`spawns`),
+                    `management_zones` = VALUES(`management_zones`), `sale_zones` = VALUES(`sale_zones`)]],
             params = {
                 record.id, record.label, record.type, record.price or QB.sql.NULL, record.owner or QB.sql.NULL,
                 record.zone and json.encode(record.zone) or QB.sql.NULL,
                 json.encode(record.vehicles), json.encode(record.placements), json.encode(record.spawns),
+                json.encode(record.managementZones or {}), json.encode(record.saleZones or {}),
             },
         },
+    })
+    QB.sql.query('INSERT INTO `qbdealership_management` (`dealership_id`,`current_balance`,`income`,`spent`,`employees`,`employee_permissions`) VALUES (?,?,?,?,?,?)', {
+        record.id, 0, 0, 0,  json.encode({}), json.encode({}),
     })
     return ok, err
 end
@@ -168,6 +168,16 @@ local function validCoords(value, needsHeading)
         coords.w = tonumber(value.w) or 0.0
     end
     return coords
+end
+
+-- Management and sale zones are plain point lists: { { coords = {x,y,z} }, ... }
+local function sanitizePoints(list)
+    local points = {}
+    for _, entry in ipairs(list) do
+        local coords = type(entry) == 'table' and validCoords(entry.coords, false)
+        if coords then points[#points + 1] = { coords = coords } end
+    end
+    return points
 end
 
 local function applyPatch(record, patch)
@@ -237,7 +247,6 @@ local function applyPatch(record, patch)
         end
         record.vehicles = vehicles
 
-        -- keep placements consistent with the vehicle list
         local allowedModels = {}
         for _, vehicle in ipairs(vehicles) do allowedModels[vehicle.model] = true end
         local keptPlacements = {}
@@ -271,6 +280,14 @@ local function applyPatch(record, patch)
             if coords then spawns[#spawns + 1] = { coords = coords } end
         end
         record.spawns = spawns
+    end
+
+    if type(patch.managementZones) == 'table' then
+        record.managementZones = sanitizePoints(patch.managementZones)
+    end
+
+    if type(patch.saleZones) == 'table' then
+        record.saleZones = sanitizePoints(patch.saleZones)
     end
     return record
 end
@@ -331,6 +348,8 @@ QB.callback.register('qbdealership:create', function(src, label)
         vehicles = {},
         placements = {},
         spawns = {},
+        managementZones = {},
+        saleZones = {},
     }
 
     local ok, err = persist(record)
@@ -363,7 +382,6 @@ QB.callback.register('qbdealership:save', function(src, id, patch)
 
     local oldPlacements = record.placements
 
-    -- edit a copy so a failed write can't leave memory/GlobalState ahead of the DB
     local working = applyPatch(json.decode(json.encode(record)), patch)
 
     local ok, err = persist(working)
@@ -371,8 +389,6 @@ QB.callback.register('qbdealership:save', function(src, id, patch)
 
     Dealerships[id] = working
 
-    -- swaps first: if the admin edit made them stale, clients should never see
-    -- the new placements with an old swap applied on top
     if reconcileSwaps(id, working, not samePlacements(oldPlacements, working.placements)) then
         publishSwaps()
     end
@@ -380,12 +396,10 @@ QB.callback.register('qbdealership:save', function(src, id, patch)
     return working
 end)
 
--- --- runtime display swaps (anyone, memory only) ---------------------------------
 
 local lastSwap = {}
 AddEventHandler('playerDropped', function() lastSwap[source] = nil end)
 
--- model == nil resets that placement back to its saved vehicle
 QB.callback.register('qbdealership:swap', function(src, dealerId, index, model)
     local record = type(dealerId) == 'string' and Dealerships[dealerId]
     if not record then return false, 'Unknown dealership.' end
@@ -417,7 +431,7 @@ QB.callback.register('qbdealership:swap', function(src, dealerId, index, model)
         return false, 'You are too far from that vehicle.'
     end
 
-    local key = tostring(index) -- string keys: sparse integer keys don't survive state bag packing reliably
+    local key = tostring(index)
     local forDealer = Swaps[dealerId] or {}
     forDealer[key] = (model and model ~= placement.model) and model or nil
     Swaps[dealerId] = next(forDealer) ~= nil and forDealer or nil

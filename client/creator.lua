@@ -206,9 +206,9 @@ local function vehiclesView()
     }
 end
 
-local function placementsView()
+local function placementsView(record)
     local items = {}
-    for index, placement in ipairs(selected.placements) do
+    for index, placement in ipairs(record.placements) do
         items[#items + 1] = {
             id = tostring(index), label = placement.model, icon = 'Car',
             description = ('%.1f, %.1f, %.1f'):format(placement.coords.x, placement.coords.y, placement.coords.z),
@@ -217,7 +217,7 @@ local function placementsView()
     end
 
     local vehicleOptions = {}
-    for _, vehicle in ipairs(selected.vehicles) do
+    for _, vehicle in ipairs(record.vehicles) do
         vehicleOptions[#vehicleOptions + 1] = {
             value = vehicle.model,
             label = vehicle.name or vehicle.model,
@@ -243,9 +243,9 @@ local function placementsView()
     }
 end
 
-local function spawnsView()
+local function spawnsView(record)
     local items = {}
-    for index, spawn in ipairs(selected.spawns) do
+    for index, spawn in ipairs(record.spawns) do
         items[#items + 1] = {
             id = tostring(index), label = ('Spawn %d'):format(index), icon = 'MapPin',
             description = ('%.1f, %.1f, %.1f'):format(spawn.coords.x, spawn.coords.y, spawn.coords.z),
@@ -265,14 +265,64 @@ local function spawnsView()
     }
 end
 
+-- Raycast picker for management/sale points: no preview model, just a coordinate.
+local function getCoords()
+    return QB.raycast.getCoords({})
+end
+
+local function pointZonesView(spec, record)
+    local items = {}
+    for index, entry in ipairs(record[spec.field] or {}) do
+        items[#items + 1] = {
+            id = tostring(index), label = ('%s %d'):format(spec.noun, index), icon = 'MapPin',
+            description = ('%.1f, %.1f, %.1f'):format(entry.coords.x, entry.coords.y, entry.coords.z),
+            action = spec.id .. ':remove:' .. index,
+        }
+    end
+
+    return {
+        id = spec.id, label = spec.label, icon = spec.icon,
+        content = {
+            title = spec.title, description = spec.description,
+            blocks = {
+                { type = 'actions', actions = { { id = spec.id .. ':add', label = spec.addLabel, variant = 'primary' } } },
+                { type = 'list', id = spec.id .. '-list', title = spec.listTitle, items = items, empty = spec.empty },
+            },
+        },
+    }
+end
+
+local managementSpec = {
+    id = 'management', field = 'managementZones', noun = 'Management zone', label = 'Management', icon = 'Briefcase',
+    title = 'Management zones', description = 'Where the dealership owner and staff manage the business. Add as many as you like.',
+    addLabel = 'Add management zone', listTitle = 'Current management zones', empty = 'No management zones yet.',
+}
+
+local saleSpec = {
+    id = 'sales', field = 'saleZones', noun = 'Sale zone', label = 'Sales', icon = 'Tag',
+    title = 'Sale zones', description = 'Where vehicles are sold to customers. Add as many as you like.',
+    addLabel = 'Add sale zone', listTitle = 'Current sale zones', empty = 'No sale zones yet.',
+}
+
+-- Shared with client/management.lua (the owner portal reuses these pages).
+DealershipViews = {
+    placements = placementsView,
+    spawns = spawnsView,
+    pointZones = pointZonesView,
+    managementSpec = managementSpec,
+    saleSpec = saleSpec,
+}
+
 local function buildNavigation()
     local views = { dealershipsView() }
     if selected then
         views[#views + 1] = dataView()
         views[#views + 1] = zoneView()
         views[#views + 1] = vehiclesView()
-        views[#views + 1] = placementsView()
-        views[#views + 1] = spawnsView()
+        views[#views + 1] = placementsView(selected)
+        views[#views + 1] = spawnsView(selected)
+        views[#views + 1] = pointZonesView(managementSpec, selected)
+        views[#views + 1] = pointZonesView(saleSpec, selected)
     end
     return views
 end
@@ -423,6 +473,22 @@ local function onAction(actionId, context)
         return saveSelected({ spawns = spawns })
     end
 
+    for _, spec in ipairs({ managementSpec, saleSpec }) do
+        if actionId == spec.id .. ':add' then
+            pendingTool = { kind = 'point', spec = spec }
+            currentView = spec.id
+            return { close = true }
+        end
+        local removeIndex = actionId:match('^' .. spec.id .. ':remove:(%d+)$')
+        if removeIndex then
+            local kept = {}
+            for index, entry in ipairs(selected[spec.field] or {}) do
+                if tostring(index) ~= removeIndex then kept[#kept + 1] = entry end
+            end
+            return saveSelected({ [spec.field] = kept })
+        end
+    end
+
     return refresh()
 end
 
@@ -453,6 +519,15 @@ local function runPendingTool()
             for _, spawn in ipairs(selected.spawns) do spawns[#spawns + 1] = spawn end
             spawns[#spawns + 1] = { coords = result.coords }
             saveSelected({ spawns = spawns })
+        end
+    elseif tool.kind == 'point' then
+        local field = tool.spec.field
+        local result = getCoords()
+        if result then
+            local list = {}
+            for _, entry in ipairs(selected[field] or {}) do list[#list + 1] = entry end
+            list[#list + 1] = { coords = result.coords }
+            saveSelected({ [field] = list })
         end
     elseif tool.kind == 'placement' then
         local result = QB.raycast.getCoords({ type = 'object', object = tool.model })

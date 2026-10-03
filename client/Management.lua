@@ -1,0 +1,432 @@
+repeat Wait(100) until GlobalState.Dealerships ~= nil
+
+local appId = 'qbdealership:management'
+
+local latest = GlobalState.Dealerships or {}
+local targets = {}      -- dealer -> { zone ids }
+local signatures = {}   -- dealer -> what the current targets were built from
+
+local dealerId = nil
+local record = nil
+local employees, permissions, settings = {}, {}, {}
+local currentView = 'orders'
+local pendingTool = nil
+local opening = false
+
+local function notify(message, tone)
+    QB.notify.send({ title = 'Dealership Management', message = message, type = tone or 'error' })
+end
+
+local function copyList(list)
+    local result = {}
+    for _, entry in ipairs(list or {}) do result[#result + 1] = entry end
+    return result
+end
+
+local views = DealershipViews
+
+-- --- pages -----------------------------------------------------------------------
+
+local function ordersView()
+    local items, options = {}, {}
+    for _, vehicle in ipairs(record.vehicles or {}) do
+        local unit = DealershipOrders.unitCost(vehicle.price)
+        local name = vehicle.name or vehicle.model
+        items[#items + 1] = {
+            id = vehicle.model, label = name, icon = 'Car',
+            description = ('In stock: %d  ·  $%d each wholesale'):format(math.floor(tonumber(vehicle.stock) or 0), unit),
+        }
+        options[#options + 1] = { value = vehicle.model, label = ('%s  ·  $%d each'):format(name, unit) }
+    end
+
+    local blocks = {}
+    if #options > 0 then
+        blocks[#blocks + 1] = {
+            type = 'form', id = 'order', title = 'Order vehicles',
+            description = ('Paid from your bank account. Up to %d per order, %d in stock per vehicle.'):format(Config.maxOrderQuantity, Config.maxStock),
+            fields = {
+                { id = 'model', label = 'Vehicle', type = 'select', options = options, required = true },
+                { id = 'quantity', label = 'Quantity', type = 'number', min = 1, max = Config.maxOrderQuantity, default = 1, required = true },
+            },
+            action = { id = 'orders:place', label = 'Place order', confirm = 'Place this order? The cost is taken from your bank account.' },
+        }
+    else
+        blocks[#blocks + 1] = { type = 'empty', title = 'This dealership has no vehicles to order. Ask an admin to add some.' }
+    end
+    blocks[#blocks + 1] = { type = 'list', id = 'order-list', title = 'Your vehicles', items = items, empty = 'No vehicles yet.' }
+
+    return {
+        id = 'orders', label = 'Order vehicles', icon = 'Truck',
+        content = { title = 'Order vehicles', description = 'Restock vehicles from this dealership\'s vehicle list.', blocks = blocks },
+    }
+end
+
+local function employeesView()
+    local items = {}
+    for _, employee in ipairs(employees) do
+        items[#items + 1] = {
+            id = employee.citizenid, label = employee.name, description = employee.citizenid, icon = 'User',
+            actions = {
+                { id = 'employees:remove:' .. employee.citizenid, label = 'Remove', icon = 'UserMinus', variant = 'destructive',
+                    confirm = ('Remove %s from this dealership?'):format(employee.name) },
+            },
+        }
+    end
+
+    return {
+        id = 'employees', label = 'Employees', icon = 'Users',
+        content = {
+            title = 'Employees', description = 'People who work for this dealership.',
+            blocks = {
+                {
+                    type = 'form', id = 'employee-add', title = 'Add employee',
+                    fields = { { id = 'serverId', label = 'Server ID', type = 'number', min = 1, required = true,
+                        description = 'The server ID of the online player to hire.' } },
+                    action = { id = 'employees:add', label = 'Add employee' },
+                },
+                { type = 'list', id = 'employee-list', title = 'Current employees', items = items, empty = 'No employees yet.' },
+            },
+        },
+    }
+end
+
+local function permissionsView()
+    local blocks = {}
+    for _, employee in ipairs(employees) do
+        blocks[#blocks + 1] = {
+            type = 'form', id = 'perm-' .. employee.citizenid, title = employee.name,
+            description = employee.citizenid,
+            fields = {
+                { id = 'permissions', label = 'Allowed to', type = 'multiselect', options = Config.employeePermissions,
+                    default = permissions[employee.citizenid] or {} },
+            },
+            action = { id = 'permissions:save:' .. employee.citizenid, label = 'Save permissions' },
+        }
+    end
+    if #blocks == 0 then
+        blocks[1] = { type = 'empty', title = 'Add an employee on the Employees page first.' }
+    end
+
+    return {
+        id = 'permissions', label = 'Employee permissions', icon = 'ShieldCheck',
+        content = { title = 'Employee permissions', description = 'Choose what each employee is allowed to do.', blocks = blocks },
+    }
+end
+
+local function settingsView()
+    return {
+        id = 'settings', label = 'Settings', icon = 'Settings',
+        content = {
+            title = 'Settings', description = 'Dealership business settings.',
+            blocks = {
+                {
+                    type = 'form', id = 'settings', title = 'Business settings',
+                    fields = {
+                        { id = 'maxPriceOverride', label = 'Max price override (%)', type = 'number', min = 0, max = 100,
+                            default = settings.maxPriceOverride or 10, required = true,
+                            description = 'How far, in percent, staff may adjust a vehicle\'s price.' },
+                        { id = 'commission', label = 'Commission (%)', type = 'number', min = 0, max = 100,
+                            default = settings.commission or 5, required = true,
+                            description = 'Share of a sale paid to the employee who made it.' },
+                        { id = 'employeeDiscount', label = 'Employee discount (%)', type = 'number', min = 0, max = 100,
+                            default = settings.employeeDiscount or 5, required = true,
+                            description = 'Discount employees get when buying from this dealership.' },
+                    },
+                    action = { id = 'settings:save', label = 'Save settings' },
+                },
+            },
+        },
+    }
+end
+
+local function buildNavigation()
+    if not record then return { { id = 'orders', label = 'Management', icon = 'Briefcase',
+        content = { title = 'Management', blocks = { { type = 'empty', title = 'This dealership is no longer available.' } } } } } end
+
+    return {
+        views.placements(record),
+        views.spawns(record),
+        views.pointZones(views.managementSpec, record),
+        views.pointZones(views.saleSpec, record),
+        employeesView(),
+        permissionsView(),
+        settingsView(),
+        ordersView(),
+    }
+end
+
+local function refresh(notice)
+    QB.nui.updateApp(appId, { navigation = buildNavigation() })
+    return { update = { navigation = buildNavigation() }, notice = notice }
+end
+
+local function fail(message)
+    return refresh({ tone = 'destructive', message = message })
+end
+
+-- --- actions ---------------------------------------------------------------------
+
+local function saveRecord(patch)
+    local result, err = QB.callback.trigger('qbdealership:management:save', dealerId, patch)
+    if not result then return fail(err or 'Save failed.') end
+    record = result
+    return refresh({ tone = 'success', message = 'Saved.' })
+end
+
+local pointSpecs = { views.managementSpec, views.saleSpec }
+
+local function onAction(actionId, context)
+    if not dealerId then return { close = true } end
+    local values = context and context.value or {}
+    if context and type(context.viewId) == 'string' then currentView = context.viewId end
+
+    -- placements
+    if actionId == 'placements:add' then
+        pendingTool = { kind = 'placement', model = values.model }
+        currentView = 'placements'
+        return { close = true }
+    end
+    local removePlacement = actionId:match('^placements:remove:(%d+)$')
+    if removePlacement then
+        local kept = {}
+        for index, placement in ipairs(record.placements) do
+            if tostring(index) ~= removePlacement then kept[#kept + 1] = placement end
+        end
+        return saveRecord({ placements = kept })
+    end
+
+    -- spawns
+    if actionId == 'spawns:add' then
+        pendingTool = { kind = 'spawn' }
+        currentView = 'spawns'
+        return { close = true }
+    end
+    local removeSpawn = actionId:match('^spawns:remove:(%d+)$')
+    if removeSpawn then
+        local kept = {}
+        for index, spawn in ipairs(record.spawns) do
+            if tostring(index) ~= removeSpawn then kept[#kept + 1] = spawn end
+        end
+        return saveRecord({ spawns = kept })
+    end
+
+    -- management / sale points
+    for _, spec in ipairs(pointSpecs) do
+        if actionId == spec.id .. ':add' then
+            pendingTool = { kind = 'point', spec = spec }
+            currentView = spec.id
+            return { close = true }
+        end
+        local removeIndex = actionId:match('^' .. spec.id .. ':remove:(%d+)$')
+        if removeIndex then
+            local kept = {}
+            for index, entry in ipairs(record[spec.field] or {}) do
+                if tostring(index) ~= removeIndex then kept[#kept + 1] = entry end
+            end
+            return saveRecord({ [spec.field] = kept })
+        end
+    end
+
+    -- employees
+    if actionId == 'employees:add' then
+        local list, err = QB.callback.trigger('qbdealership:management:addEmployee', dealerId, values.serverId)
+        if not list then return fail(err or 'Could not add the employee.') end
+        employees = list
+        return refresh({ tone = 'success', message = 'Employee added.' })
+    end
+    local removeEmployee = actionId:match('^employees:remove:(.+)$')
+    if removeEmployee then
+        local list, err = QB.callback.trigger('qbdealership:management:removeEmployee', dealerId, removeEmployee)
+        if not list then return fail(err or 'Could not remove the employee.') end
+        employees = list
+        permissions[removeEmployee] = nil
+        return refresh({ tone = 'success', message = 'Employee removed.' })
+    end
+
+    -- employee permissions
+    local permissionTarget = actionId:match('^permissions:save:(.+)$')
+    if permissionTarget then
+        local map, err = QB.callback.trigger('qbdealership:management:savePermissions', dealerId, permissionTarget, values.permissions or {})
+        if not map then return fail(err or 'Could not save permissions.') end
+        permissions = map
+        return refresh({ tone = 'success', message = 'Permissions saved.' })
+    end
+
+    -- settings
+    if actionId == 'settings:save' then
+        local saved, err = QB.callback.trigger('qbdealership:management:saveSettings', dealerId, values)
+        if not saved then return fail(err or 'Could not save settings.') end
+        settings = saved
+        return refresh({ tone = 'success', message = 'Settings saved.' })
+    end
+
+    -- ordering stock
+    if actionId == 'orders:place' then
+        local result, err = QB.callback.trigger('qbdealership:management:orderVehicle', dealerId, values.model, values.quantity)
+        if not result then return fail(err or 'Could not place the order.') end
+        record = result.record
+        return refresh({ tone = 'success', message = ('Ordered %d for $%d.'):format(result.amount, result.cost) })
+    end
+
+    return refresh()
+end
+
+QB.nui.registerApp({
+    id = appId,
+    title = 'Dealership Management',
+    icon = 'Briefcase',
+    layout = 'standard',
+    width = 1200,
+    height = 800,
+    defaultView = 'orders',
+    navigation = buildNavigation(),
+    onAction = onAction,
+})
+
+-- --- raycast tools (the shell closes while aiming) -----------------------------------
+
+local function runPendingTool()
+    local tool = pendingTool
+    pendingTool = nil
+
+    local function save(patch)
+        local result, err = QB.callback.trigger('qbdealership:management:save', dealerId, patch)
+        if result then record = result else notify(err or 'Save failed.') end
+    end
+
+    if tool.kind == 'point' then
+        local result = QB.raycast.getCoords({})
+        if result then
+            local list = copyList(record[tool.spec.field])
+            list[#list + 1] = { coords = result.coords }
+            save({ [tool.spec.field] = list })
+        end
+    elseif tool.kind == 'spawn' then
+        local result = QB.raycast.getCoords({ type = 'object', object = 'asbo' })
+        if result then
+            local list = copyList(record.spawns)
+            list[#list + 1] = { coords = result.coords }
+            save({ spawns = list })
+        end
+    elseif tool.kind == 'placement' then
+        local result = QB.raycast.getCoords({ type = 'object', object = tool.model })
+        if result then
+            local list = copyList(record.placements)
+            list[#list + 1] = { model = tool.model, coords = result.coords }
+            save({ placements = list })
+        end
+    end
+end
+
+local function loadData()
+    local list, err = QB.callback.trigger('qbdealership:management:getEmployees', dealerId)
+    if not list then notify(err or 'Could not load employees.') return false end
+    employees = list
+
+    local saved, settingsErr = QB.callback.trigger('qbdealership:management:getSettings', dealerId)
+    if not saved then notify(settingsErr or 'Could not load settings.') return false end
+    settings = saved
+
+    local map, permissionsErr = QB.callback.trigger('qbdealership:management:getEmployeePermissions', dealerId)
+    if not map then notify(permissionsErr or 'Could not load permissions.') return false end
+    permissions = map
+
+    return true
+end
+
+local function openPortal(dealer)
+    if opening then return end
+    opening = true
+
+    local ok, err = pcall(function()
+        dealerId = dealer
+        record = latest[dealer]
+        if not record then return notify('This dealership is no longer available.') end
+        if not loadData() then return end
+
+        currentView = 'orders'
+        while true do
+            QB.nui.updateApp(appId, { navigation = buildNavigation() })
+            QB.nui.openApp(appId, { viewId = currentView })
+            if not pendingTool then break end
+            runPendingTool()
+        end
+    end)
+
+    dealerId, record, pendingTool = nil, nil, nil
+    opening = false
+    if not ok then error(err, 0) end
+end
+
+-- --- management point targets ------------------------------------------------------------
+
+local function isOwner(dealer)
+    local data = exports.qbcore:getPlayerData()
+    local dealership = latest[dealer]
+    return data ~= nil and dealership ~= nil
+        and dealership.type == 'owned'
+        and data.citizenid ~= nil
+        and data.citizenid == dealership.owner
+end
+
+-- ADAPTER: the only qbtarget call I couldn't verify (ox_target-style point zone).
+-- Swap the body if your qbtarget names its coordinate zones differently.
+local function addManagementTarget(dealer, coords)
+    return exports.qbtarget:addSphereZone({
+        coords = vector3(coords.x, coords.y, coords.z),
+        radius = Config.managementTargetRadius,
+        options = {
+            {
+                icon = 'fas fa-briefcase',
+                label = 'Open management',
+                canInteract = function() return isOwner(dealer) end,
+                onSelect = function() CreateThread(function() openPortal(dealer) end) end,
+            },
+        },
+    })
+end
+
+local function removeTargets(dealer)
+    for _, id in ipairs(targets[dealer] or {}) do
+        pcall(function() exports.qbtarget:removeZone(id) end)
+    end
+    targets[dealer] = nil
+    signatures[dealer] = nil
+end
+
+local function syncTargets()
+    for dealer, data in pairs(latest) do
+        local signature = data.type == 'owned' and json.encode(data.managementZones or {}) or nil
+        if signature ~= signatures[dealer] then
+            removeTargets(dealer)
+            if signature then
+                signatures[dealer] = signature
+                targets[dealer] = {}
+                for _, zone in ipairs(data.managementZones or {}) do
+                    local ok, id = pcall(addManagementTarget, dealer, zone.coords)
+                    if ok and id then
+                        targets[dealer][#targets[dealer] + 1] = id
+                    elseif not ok then
+                        print(('[qbdealership] could not add a management target: %s'):format(tostring(id)))
+                    end
+                end
+            end
+        end
+    end
+
+    for dealer in pairs(signatures) do
+        if not latest[dealer] then removeTargets(dealer) end
+    end
+end
+
+syncTargets()
+
+AddStateBagChangeHandler('Dealerships', 'global', function(_, _, value)
+    latest = value or {}
+    syncTargets()
+end)
+
+AddEventHandler('onResourceStop', function(resource)
+    if resource ~= GetCurrentResourceName() then return end
+    for dealer in pairs(targets) do removeTargets(dealer) end
+end)

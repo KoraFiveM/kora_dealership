@@ -77,14 +77,11 @@ local function vehicleCard(current, vehicle, categoryName, dealerType)
     local price = math.floor(tonumber(vehicle.price) or 1)
     local tbl =  {
         id = vehicle.model,
-        label = vehicle.name or vehicle.model,
-        badge = ('$%d'):format(price),
+        label = ('%s | $%d'):format(vehicle.name or vehicle.model, price),
         description = isCurrent and 'Currently displayed here' or nil,
         tone = isCurrent and 'primary' or nil,
-        icon = 'Car',
         image = vehicleImage(vehicle.model),
         metadata = { { label = 'Class', value = categoryName } },
-        action = 'view:' .. vehicle.model,
         actions = {
             { id = 'swap:' .. vehicle.model, label = 'Swap', icon = 'Repeat', variant = 'outline', disabled = isCurrent,
                 description = 'Display this vehicle here instead. Everyone sees it; nothing is saved.' },
@@ -157,7 +154,7 @@ local function showroomNavigation(ctx)
                 description = dealerData.label or 'Dealership',
                 actions = { resetAction },
                 blocks = {
-                    { type = 'list', id = 'showroom-' .. group.order, layout = 'grid', searchable = #items > 6,
+                    { type = 'list', id = 'showroom-' .. group.order, layout = 'cards', searchable = #items > 6,
                         items = items, empty = 'No vehicles in this category.' },
                 },
             },
@@ -217,7 +214,7 @@ local vehicleActions = {
                 return notify('The test vehicle did not load.')
             end
             TaskWarpPedIntoVehicle(ped, vehicle, -1)
-            notify('Test drive started. Get out of the vehicle to end it.', 'inform')
+            notify('Test drive started. Get out of the vehicle to end it.', 'info')
             Wait(1500)
             while DoesEntityExist(vehicle) and GetVehiclePedIsIn(PlayerPedId(), false) == vehicle do Wait(500) end
 
@@ -235,24 +232,6 @@ local vehicleActions = {
         local confirm = QB.callback.trigger('qbdealership:makeOffer', v.dealer, v.index, v.model, amount, terms)
     end,
 }
-
-local function previewVehicle(vehicle, categoryName)
-    CreateThread(function()
-        local result = QB.nui.openAlert({
-            title = vehicle.name,
-            message = ('**$%d**  ·  %s  ·  %s'):format(vehicle.price, categoryName, vehicle.dealerLabel),
-            image = vehicleImage(vehicle.model),
-            size = 'lg',
-            centered = true,
-            confirmLabel = 'Purchase',
-            cancelLabel = 'Back',
-        })
-        if result and result.confirmed then
-            QB.nui.closeApp(SHOWROOM_APP_ID)
-            vehicleActions.purchase(vehicle)
-        end
-    end)
-end
 
 local function offerAmountNavigation(v)
     return {
@@ -376,8 +355,7 @@ local function onShowroomAction(actionId, context)
     local vehicle = vehicleDescriptor(dealerData, ctx.dealer, ctx.index, model)
     if not vehicle then return {} end
 
-    if kind == 'view' then previewVehicle(vehicle, categoryOf(model).name)
-    elseif kind == 'test' then vehicleActions.testDrive(vehicle)
+    if kind == 'test' then vehicleActions.testDrive(vehicle)
     elseif kind == 'purchase' then vehicleActions.purchase(vehicle)
     elseif kind == 'offer' then runOfferFlow(vehicle) end
 

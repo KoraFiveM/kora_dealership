@@ -16,6 +16,7 @@ shared_scripts {
     '@qbsql/init.lua',
     '@qbcore/init.lua',
     'config.lua',
+    'shared/functions.lua'
 }
 
 server_script 'server/**.lua'

@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS `qbdealerships` (
   `vehicles` LONGTEXT DEFAULT NULL,
   `placements` LONGTEXT DEFAULT NULL,
   `spawns` LONGTEXT DEFAULT NULL,
+  `management_zones` LONGTEXT DEFAULT NULL,
+  `sale_zones` LONGTEXT DEFAULT NULL,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
@@ -30,6 +32,27 @@ CREATE TABLE IF NOT EXISTS `qbdealership_offers` (
   KEY `idx_offers_offeror` (`offeror`),
   KEY `idx_offers_pending_auto_accept` (`status`, `auto_accept_at`),
   CONSTRAINT `fk_offers_dealership`
+    FOREIGN KEY (`dealership_id`) REFERENCES `qbdealerships` (`id`)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `qbdealership_management` (
+  `dealership_id` VARCHAR(64) NOT NULL,
+  `current_balance` INT NOT NULL DEFAULT 0,
+  `income` INT UNSIGNED NOT NULL DEFAULT 0,
+  `spent` INT UNSIGNED NOT NULL DEFAULT 0,
+  `sales` LONGTEXT DEFAULT '[]',
+  `employees` LONGTEXT DEFAULT NULL,
+  `employee_permissions` LONGTEXT DEFAULT NULL,
+  `settings` LONGTEXT NOT NULL DEFAULT '{
+	  "maxPriceOverride": 10,
+      "commission": 5,
+	  "employeeDiscount": 5
+  }',
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`dealership_id`),
+  CONSTRAINT `fk_management_dealership`
     FOREIGN KEY (`dealership_id`) REFERENCES `qbdealerships` (`id`)
     ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
