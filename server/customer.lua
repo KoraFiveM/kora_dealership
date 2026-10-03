@@ -63,6 +63,7 @@ QB.callback.register('qbdealership:testDrive', function(src, dealer, index, mode
     testDrives[src] = { oldBucket = oldBucket, bucket = bucket, vehicle = vehicle, plate = plate }
 
     exports.qbvehiclekeys:giveKeys(src, plate)
+    TaskWarpPedIntoVehicle(GetPlayerPed(src), vehicle, -1)  
     local netId = NetworkGetNetworkIdFromEntity(vehicle)
     if not netId or netId == 0 then
         endTestDrive(src)
@@ -101,6 +102,16 @@ QB.callback.register('qbdealership:confirmPurchase', function(src, dealer, index
     if vehicleData.price <= 0 then return false end
     if not exports.qbcore:removeMoney(src, 'bank', vehicleData.price) then return false end
     vehicleData.stock = vehicleData.stock - 1
+
+    -- Owned dealerships get the sale price credited to their funds (the management tab's
+    -- balance); public/for-sale listings have no owner wallet to credit.
+    if Dealerships[dealer].type == 'owned' then
+        QB.sql.update(
+            'UPDATE `qbdealership_management` SET `current_balance` = `current_balance` + ?, `income` = `income` + ? WHERE `dealership_id` = ?',
+            { vehicleData.price, vehicleData.price, dealer }
+        )
+    end
+
     local newVeh = createVehicle(model, Dealerships[dealer].spawns[1].coords)
     QB.sql.query('INSERT INTO player_vehicles (plate, vehicle, citizenid, state, fuel, engine_health, body_health, balance, paymentamount, paymentsleft, financetime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', {
         newVeh and GetVehicleNumberPlateText(newVeh) or '',

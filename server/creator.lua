@@ -293,6 +293,33 @@ local function applyPatch(record, patch)
 end
 
 
+-- Exposed for server/Management.lua (the owner portal). Persists a full in-memory record,
+-- updates the shared table, and republishes it to GlobalState.
+function CommitDealership(record)
+    local ok, err = persist(record)
+    if not ok then return false, err or 'Failed to save.' end
+    Dealerships[record.id] = record
+    publish()
+    return record
+end
+
+-- Applies a patch (same shape as the admin qbdealership:save callback above) and commits it.
+function SaveDealership(id, patch)
+    local record = Dealerships[id]
+    if not record then return false, 'Unknown dealership.' end
+
+    local oldPlacements = record.placements
+    local working = applyPatch(json.decode(json.encode(record)), patch)
+
+    local committed, err = CommitDealership(working)
+    if not committed then return false, err end
+
+    if reconcileSwaps(id, working, not samePlacements(oldPlacements, working.placements)) then
+        publishSwaps()
+    end
+    return committed
+end
+
 CreateThread(function()
     QB.sql.query([[UPDATE qbdealerships
         SET vehicles = (

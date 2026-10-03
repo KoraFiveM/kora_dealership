@@ -9,6 +9,7 @@ local signatures = {}   -- dealer -> what the current targets were built from
 local dealerId = nil
 local record = nil
 local employees, permissions, settings = {}, {}, {}
+local funds = { balance = 0, income = 0, spent = 0 }
 local currentView = 'orders'
 local pendingTool = nil
 local opening = false
@@ -43,12 +44,12 @@ local function ordersView()
     if #options > 0 then
         blocks[#blocks + 1] = {
             type = 'form', id = 'order', title = 'Order vehicles',
-            description = ('Paid from your bank account. Up to %d per order, %d in stock per vehicle.'):format(Config.maxOrderQuantity, Config.maxStock),
+            description = ('Paid from the dealership\'s funds (balance: $%d). Up to %d per order, %d in stock per vehicle.'):format(funds.balance or 0, Config.maxOrderQuantity, Config.maxStock),
             fields = {
                 { id = 'model', label = 'Vehicle', type = 'select', options = options, required = true },
                 { id = 'quantity', label = 'Quantity', type = 'number', min = 1, max = Config.maxOrderQuantity, default = 1, required = true },
             },
-            action = { id = 'orders:place', label = 'Place order', confirm = 'Place this order? The cost is taken from your bank account.' },
+            action = { id = 'orders:place', label = 'Place order', confirm = 'Place this order? The cost is taken from the dealership\'s funds.' },
         }
     else
         blocks[#blocks + 1] = { type = 'empty', title = 'This dealership has no vehicles to order. Ask an admin to add some.' }
@@ -113,6 +114,37 @@ local function permissionsView()
     }
 end
 
+local function fundsView()
+    return {
+        id = 'funds', label = 'Funds', icon = 'Wallet',
+        content = {
+            title = 'Dealership funds', description = 'Vehicle orders are paid from these funds, and vehicle sales pay into them.',
+            blocks = {
+                {
+                    type = 'list', id = 'funds-summary', title = 'Balance',
+                    items = {
+                        { id = 'balance', label = ('Current balance: $%d'):format(funds.balance or 0), icon = 'Wallet' },
+                        { id = 'income', label = ('Total income: $%d'):format(funds.income or 0), icon = 'TrendingUp' },
+                        { id = 'spent', label = ('Total spent: $%d'):format(funds.spent or 0), icon = 'TrendingDown' },
+                    },
+                },
+                {
+                    type = 'form', id = 'funds-deposit', title = 'Deposit funds',
+                    description = 'Move money from your own bank account into the dealership\'s funds.',
+                    fields = { { id = 'amount', label = 'Amount', type = 'number', min = 1, required = true } },
+                    action = { id = 'funds:deposit', label = 'Deposit' },
+                },
+                {
+                    type = 'form', id = 'funds-withdraw', title = 'Withdraw funds',
+                    description = 'Move money from the dealership\'s funds into your own bank account.',
+                    fields = { { id = 'amount', label = 'Amount', type = 'number', min = 1, required = true } },
+                    action = { id = 'funds:withdraw', label = 'Withdraw', confirm = 'Withdraw this amount from the dealership\'s funds?' },
+                },
+            },
+        },
+    }
+end
+
 local function settingsView()
     return {
         id = 'settings', label = 'Settings', icon = 'Settings',
@@ -151,6 +183,7 @@ local function buildNavigation()
         employeesView(),
         permissionsView(),
         settingsView(),
+        fundsView(),
         ordersView(),
     }
 end
@@ -260,11 +293,27 @@ local function onAction(actionId, context)
         return refresh({ tone = 'success', message = 'Settings saved.' })
     end
 
+    -- funds
+    if actionId == 'funds:deposit' then
+        local result, err = QB.callback.trigger('qbdealership:management:depositFunds', dealerId, values.amount)
+        if not result then return fail(err or 'Could not deposit the funds.') end
+        funds.balance = result.balance or funds.balance
+        return refresh({ tone = 'success', message = 'Funds deposited.' })
+    end
+    if actionId == 'funds:withdraw' then
+        local result, err = QB.callback.trigger('qbdealership:management:withdrawFunds', dealerId, values.amount)
+        if not result then return fail(err or 'Could not withdraw the funds.') end
+        funds.balance = result.balance or funds.balance
+        return refresh({ tone = 'success', message = 'Funds withdrawn.' })
+    end
+
     -- ordering stock
     if actionId == 'orders:place' then
         local result, err = QB.callback.trigger('qbdealership:management:orderVehicle', dealerId, values.model, values.quantity)
         if not result then return fail(err or 'Could not place the order.') end
         record = result.record
+        funds.balance = (funds.balance or 0) - result.cost
+        funds.spent = (funds.spent or 0) + result.cost
         return refresh({ tone = 'success', message = ('Ordered %d for $%d.'):format(result.amount, result.cost) })
     end
 
@@ -330,6 +379,10 @@ local function loadData()
     local map, permissionsErr = QB.callback.trigger('qbdealership:management:getEmployeePermissions', dealerId)
     if not map then notify(permissionsErr or 'Could not load permissions.') return false end
     permissions = map
+
+    local balanceData, fundsErr = QB.callback.trigger('qbdealership:management:getBalance', dealerId)
+    if not balanceData then notify(fundsErr or 'Could not load funds.') return false end
+    funds = balanceData
 
     return true
 end

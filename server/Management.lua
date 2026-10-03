@@ -35,7 +35,7 @@ end
 local function loadRow(dealer)
     QB.sql.query('INSERT IGNORE INTO `qbdealership_management` (`dealership_id`) VALUES (?)', { dealer })
     local rows = QB.sql.query(
-        'SELECT `employees`, `employee_permissions`, `settings` FROM `qbdealership_management` WHERE `dealership_id` = ?',
+        'SELECT * FROM `qbdealership_management` WHERE `dealership_id` = ?',
         { dealer }
     )
     return rows and rows[1]
@@ -291,6 +291,70 @@ QB.callback.register('qbdealership:management:save', function(src, dealer, patch
     return SaveDealership(dealer, allowedPatch)
 end)
 
+-- --- funds ------------------------------------------------------------------------
+
+local function readBalance(row)
+    return math.floor(tonumber(row.current_balance) or 0)
+end
+
+QB.callback.register('qbdealership:management:getBalance', function(src, dealer)
+    local record, err = authorize(src, dealer)
+    if not record then return fail(err) end
+    local row = loadRow(dealer)
+    if not row then return fail('Could not load the balance.') end
+    QB.print.debug(row)
+    return {
+        balance = readBalance(row),
+        income = math.floor(tonumber(row.income) or 0),
+        spent = math.floor(tonumber(row.spent) or 0),
+    }
+end)
+
+-- Moves money from the owner's own bank account into the dealership's funds. Like every
+-- other management action, the owner still has to be standing at a management point.
+QB.callback.register('qbdealership:management:depositFunds', function(src, dealer, amount)
+    local record, err = authorize(src, dealer)
+    if not record then return fail(err) end
+
+    amount = math.floor(tonumber(amount) or 0)
+    if amount < 1 then return fail('Enter a valid amount.') end
+
+    if not exports.qbcore:removeMoney(src, 'bank', amount) then
+        return fail('Not enough money in your bank account.')
+    end
+
+    loadRow(dealer)
+    if not QB.sql.update('UPDATE `qbdealership_management` SET `current_balance` = `current_balance` + ? WHERE `dealership_id` = ?', { amount, dealer }) then
+        exports.qbcore:addMoney(src, 'bank', amount) -- refund -- the deposit never landed
+        return fail('Could not deposit the funds.')
+    end
+
+    local row = loadRow(dealer)
+    return { balance = row and readBalance(row) or nil }
+end)
+
+-- Moves money from the dealership's funds back into the owner's own bank account.
+QB.callback.register('qbdealership:management:withdrawFunds', function(src, dealer, amount)
+    local record, err = authorize(src, dealer)
+    if not record then return fail(err) end
+
+    amount = math.floor(tonumber(amount) or 0)
+    if amount < 1 then return fail('Enter a valid amount.') end
+
+    local row = loadRow(dealer)
+    if not row then return fail('Could not load the balance.') end
+    if readBalance(row) < amount then return fail('The dealership does not have enough funds.') end
+
+    if not QB.sql.update('UPDATE `qbdealership_management` SET `current_balance` = `current_balance` - ? WHERE `dealership_id` = ? AND `current_balance` >= ?', { amount, dealer, amount }) then
+        return fail('Could not withdraw the funds.')
+    end
+
+    exports.qbcore:addMoney(src, 'bank', amount)
+
+    local updated = loadRow(dealer)
+    return { balance = updated and readBalance(updated) or nil }
+end)
+
 -- --- ordering stock ---------------------------------------------------------------
 
 QB.callback.register('qbdealership:management:orderVehicle', function(src, dealer, model, quantity)
@@ -317,24 +381,34 @@ QB.callback.register('qbdealership:management:orderVehicle', function(src, deale
 
         local cost = DealershipOrders.unitCost(entry.price) * amount
 
-        -- Add the stock first, then take payment; if payment fails, take that stock back off
-        -- the *current* record so a concurrent sale is never overwritten.
+        local fundsRow = loadRow(dealer)
+        if not fundsRow then return fail('Could not load the dealership funds.') end
+        local balance = readBalance(fundsRow)
+        if balance < cost then
+            return fail(('Not enough dealership funds ($%d needed, $%d available).'):format(cost, balance))
+        end
+
+        -- Add the stock first, then take payment from the dealership's funds; if payment
+        -- fails, take that stock back off the *current* record so a concurrent sale is
+        -- never overwritten.
         local working = copy(record)
         findVehicle(working, model).stock = stock + amount
         local committed, commitErr = CommitDealership(working)
         if not committed then return fail(commitErr or 'Could not place the order.') end
 
-        if not exports.qbcore:removeMoney(src, 'bank', cost) then
+        local paid = QB.sql.update(
+            'UPDATE `qbdealership_management` SET `current_balance` = `current_balance` - ?, `spent` = `spent` + ? WHERE `dealership_id` = ? AND `current_balance` >= ?',
+            { cost, cost, dealer, cost }
+        )
+        if not paid then
             local current = copy(Dealerships[dealer])
             local currentEntry = findVehicle(current, model)
             if currentEntry then
                 currentEntry.stock = math.max(0, math.floor(tonumber(currentEntry.stock) or 0) - amount)
-                CommitDealership(current)
             end
-            return fail(('Not enough money in your bank account ($%d needed).'):format(cost))
+            return fail(('Not enough dealership funds ($%d needed).'):format(cost))
         end
 
-        QB.sql.update('UPDATE `qbdealership_management` SET `spent` = `spent` + ? WHERE `dealership_id` = ?', { cost, dealer })
         return { record = Dealerships[dealer], cost = cost, amount = amount }
     end)
 

@@ -154,7 +154,7 @@ local function showroomNavigation(ctx)
                 description = dealerData.label or 'Dealership',
                 actions = { resetAction },
                 blocks = {
-                    { type = 'list', id = 'showroom-' .. group.order, layout = 'cards', searchable = #items > 6,
+                    { type = 'list', id = 'showroom-' .. group.order, layout = 'cards',cardStyle='media', columns = 3, searchable = #items > 6,
                         items = items, empty = 'No vehicles in this category.' },
                 },
             },
