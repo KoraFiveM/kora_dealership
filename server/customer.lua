@@ -1,75 +1,58 @@
+-- Customer actions at a display vehicle: test drive, buy, make an offer.
+
 local testDrives = {}
 
 local testDriveDistance = 5.0
 local testBucketBase = 100000
 local testSpawn = vector4(-1574.22, -3008.77, 13.94, 227.21)
 
-local function fail(message)
-    return false, message
+-- Shared checks for everything done at a display vehicle. Returns the dealership and the
+-- vehicle entry, or nil and an error message.
+local function checkCustomer(src, dealer, index, model)
+    local record = Dealerships[dealer]
+    if not record then return nil, 'Unknown dealership.' end
+    if not fn.nearPlacement(src, record, index, testDriveDistance) then return nil, 'You are too far from the vehicle.' end
+
+    local entry = type(model) == 'string' and fn.findVehicle(record, model)
+    if not entry then return nil, 'That vehicle is not sold here.' end
+    return record, entry
 end
 
-local function createVehicle(model, spawn)
-    local vehicle = CreateVehicle(joaat(model), spawn.x, spawn.y, spawn.z, spawn.w, true, true)
-    local waited = 0
-    while (not vehicle or vehicle == 0 or not DoesEntityExist(vehicle)) and waited < 3000 do
-        Wait(50)
-        waited = waited + 50
-    end
-    if not vehicle or vehicle == 0 or not DoesEntityExist(vehicle) then
-        return nil
-    end
+-- --- test drive -----------------------------------------------------------------------
 
-    return vehicle
-end
-    
 local function endTestDrive(src)
     local data = testDrives[src]
     if not data then return end
     testDrives[src] = nil
 
     if GetPlayerPed(src) ~= 0 then SetPlayerRoutingBucket(src, data.oldBucket) end
-    if data.vehicle and DoesEntityExist(data.vehicle) then DeleteEntity(data.vehicle) end
-end
-
-local function vehicleListed(dealerData, model)
-    for _, entry in ipairs(dealerData.vehicles or {}) do
-        if entry.model == model then return true end
-    end
-    return false
+    if DoesEntityExist(data.vehicle) then DeleteEntity(data.vehicle) end
 end
 
 QB.callback.register('qbdealership:testDrive', function(src, dealer, index, model)
-    if testDrives[src] then return fail('You are already on a test drive.') end
-    assert(src and dealer and index and model, 'Invalid test drive parameters.')
-    assert(not testDrives[src], 'You are already on a test drive.')
-    assert(Dealerships[dealer], 'Unknown dealership.')
-    assert(QB.distance.player(src, Dealerships[dealer].placements[index].coords, testDriveDistance), 'You are too far from the vehicle.')
+    if testDrives[src] then return fn.fail('You are already on a test drive.') end
 
+    local record, err = checkCustomer(src, dealer, index, model)
+    if not record then return fn.fail(err) end
 
-    if type(model) ~= 'string' or not vehicleListed(Dealerships[dealer], model) then
-        return fail('That vehicle is not sold here.')
-    end
+    local vehicle = fn.createVehicle(model, testSpawn)
+    if not vehicle then return fn.fail('Could not spawn the test vehicle.') end
+
     local bucket = testBucketBase + src
-    local oldBucket = GetPlayerRoutingBucket(src)
-    local vehicle = createVehicle(model, testSpawn)
-    if not vehicle then
-        return fail('Could not spawn the test vehicle.')
-    end
+    testDrives[src] = { oldBucket = GetPlayerRoutingBucket(src), vehicle = vehicle }
     SetEntityRoutingBucket(vehicle, bucket)
     SetPlayerRoutingBucket(src, bucket)
 
     local plate = ('TD%06d'):format(src)
     SetVehicleNumberPlateText(vehicle, plate)
-    testDrives[src] = { oldBucket = oldBucket, bucket = bucket, vehicle = vehicle, plate = plate }
-
     exports.qbvehiclekeys:giveKeys(src, plate)
-    TaskWarpPedIntoVehicle(GetPlayerPed(src), vehicle, -1)  
-    local netId = NetworkGetNetworkIdFromEntity(vehicle)
-    if not netId or netId == 0 then
-        endTestDrive(src)
-        return fail('Could not network the test vehicle.')
-    end
+    TaskWarpPedIntoVehicle(GetPlayerPed(src), vehicle, -1)
 
+    local netId = NetworkGetNetworkIdFromEntity(vehicle)
+    if netId == 0 then
+        endTestDrive(src)
+        return fn.fail('Could not network the test vehicle.')
+    end
     return netId
 end)
 
@@ -86,49 +69,34 @@ AddEventHandler('onResourceStop', function(resource)
     for src in pairs(testDrives) do endTestDrive(src) end
 end)
 
-local function getVehicleData(dealer, model)
-    for _, entry in ipairs(Dealerships[dealer].vehicles or {}) do
-        if entry.model == model then return entry end
-    end
-    return nil
-end
+-- --- buying -----------------------------------------------------------------------------
 
 QB.callback.register('qbdealership:confirmPurchase', function(src, dealer, index, model)
-    if not QB.distance.player(src, Dealerships[dealer].placements[index].coords, testDriveDistance) then return false end
-    if not vehicleListed(Dealerships[dealer], model) then return false end
-    local vehicleData = getVehicleData(dealer, model)
-    if not vehicleData then return false end
-    if vehicleData.stock <= 0 then return false end
-    if vehicleData.price <= 0 then return false end
-    if not exports.qbcore:removeMoney(src, 'bank', vehicleData.price) then return false end
-    vehicleData.stock = vehicleData.stock - 1
+    local record, entry = checkCustomer(src, dealer, index, model)
+    if not record then return fn.fail(entry) end
+    if not fn.inStock(record, entry) then return fn.fail('That vehicle is out of stock.') end
 
-    -- Owned dealerships get the sale price credited to their funds (the management tab's
-    -- balance); public/for-sale listings have no owner wallet to credit.
-    if Dealerships[dealer].type == 'owned' then
-        QB.sql.update(
-            'UPDATE `qbdealership_management` SET `current_balance` = `current_balance` + ?, `income` = `income` + ? WHERE `dealership_id` = ?',
-            { vehicleData.price, vehicleData.price, dealer }
-        )
+    local spawn = record.spawns[1]
+    if not spawn then return fn.fail('This dealership has no spawn point.') end
+
+    local price = entry.price
+    if not exports.qbcore:removeMoney(src, 'bank', price) then
+        return fn.fail('Not enough money in your bank account.')
     end
 
-    local newVeh = createVehicle(model, Dealerships[dealer].spawns[1].coords)
-    QB.sql.query('INSERT INTO player_vehicles (plate, vehicle, citizenid, state, fuel, engine_health, body_health, balance, paymentamount, paymentsleft, financetime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', {
-        newVeh and GetVehicleNumberPlateText(newVeh) or '',
-        model,
-        exports.qbcore:getPlayerData(src).citizenid,
-        'out',
-        100.0,
-        1000.0,
-        1000.0,
-        0,
-        0,
-        0,
-        0
-    })
-    exports.qbvehiclekeys:giveKeys(src, GetVehicleNumberPlateText(newVeh))
-    return NetworkGetNetworkIdFromEntity(newVeh)
+    fn.adjustStock(dealer, model, -1)
+    local netId = fn.deliverVehicle(src, model, spawn)
+    if not netId then
+        fn.adjustStock(dealer, model, 1)
+        exports.qbcore:addMoney(src, 'bank', price)
+        return fn.fail('Could not spawn your vehicle. You were refunded.')
+    end
+
+    fn.creditSale(dealer, price)
+    return netId
 end)
+
+-- --- offers -----------------------------------------------------------------------------
 
 local function autoAcceptAt()
     local days = tonumber(Config.autoConfirmOffersDays)
@@ -136,29 +104,23 @@ local function autoAcceptAt()
     return os.date('!%Y-%m-%d %H:%M:%S', os.time() + math.floor(days * 86400))
 end
 
-local function getOfferPerson(src)
-    local data = exports.qbcore:getPlayerData(src)
-    return {
-        name = data.charinfo.firstname .. ' ' .. data.charinfo.lastname,
-        citizenid = data.citizenid,
-    }
-end
 QB.callback.register('qbdealership:makeOffer', function(src, dealer, index, model, amount, terms)
-    assert(src and dealer and index and model and amount, 'Invalid offer parameters.')
-    assert(QB.distance.player(src, Dealerships[dealer].placements[index].coords, testDriveDistance), 'Player is too far from the dealership.')
-    if not vehicleListed(Dealerships[dealer], model) then return false end
-    local vehicleData = getVehicleData(dealer, model)
-    if not vehicleData then return false end
-    if vehicleData.stock <= 0 then return false end
-    if vehicleData.price <= 0 then return false end
-    QB.sql.query('INSERT INTO qbdealership_offers (dealership_id, model, offer_price, offer_text, auto_accept_at, status, offeror ) VALUES (?, ?, ?, ?, ?, ?, ?)', {
-        dealer,
-        model,
-        amount,
-        terms or '',
-        autoAcceptAt(),
-        'pending',
-        getOfferPerson(src)
+    local record, entry = checkCustomer(src, dealer, index, model)
+    if not record then return fn.fail(entry) end
+    if not fn.inStock(record, entry) then return fn.fail('That vehicle is out of stock.') end
+
+    amount = math.floor(tonumber(amount) or 0)
+    if amount < 1 or amount > Config.maxPrice then return fn.fail('Enter a valid offer.') end
+
+    terms = type(terms) == 'string' and terms:sub(1, 500) or ''
+    local offeror = fn.citizenId(src)
+    local expiry = autoAcceptAt()
+
+    QB.sql.query('INSERT INTO `qbdealership_offers` (`dealership_id`, `model`, `offer_price`, `offer_text`, `auto_accept_at`, `status`, `offeror`) VALUES (?, ?, ?, ?, ?, ?, ?)', {
+        dealer, model, amount, terms, expiry or QB.sql.NULL, 'pending', offeror,
     })
+
+    Offers[dealer] = Offers[dealer] or {}
+    table.insert(Offers[dealer], { model = model, price = amount, additional = terms, offeror = offeror, expiry = expiry })
     return true
 end)

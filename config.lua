@@ -21,6 +21,15 @@ Config.employeePermissions = {
     { value = 'orderVehicles', label = 'Order vehicles' },
     { value = 'manageDisplay', label = 'Manage display placements' },
 }
+
+-- Sales target (owner/employee-assisted vehicle sales)
+Config.saleDistance = 5.0            -- server-checked max distance from a sale point
+Config.saleTargetRadius = 1.5        -- size of the target zone at each sale point
+Config.nearbyCustomerDistance = 8.0  -- how close a customer must be to show up in the nearby list
+Config.paymentMethods = {
+    { value = 'cash', label = 'Cash' },
+    { value = 'card', label = 'Card' },
+}
 Config.categories = { -- See this, dont touch this. like seriously, this is tied to the vehicle class IDs
     'Compacts',
     'Sedans',

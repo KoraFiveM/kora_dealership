@@ -411,7 +411,6 @@ local function openPortal(dealer)
     if not ok then error(err, 0) end
 end
 
--- --- management point targets ------------------------------------------------------------
 
 local function isOwner(dealer)
     local data = exports.qbcore:getPlayerData()
@@ -422,8 +421,6 @@ local function isOwner(dealer)
         and data.citizenid == dealership.owner
 end
 
--- ADAPTER: the only qbtarget call I couldn't verify (ox_target-style point zone).
--- Swap the body if your qbtarget names its coordinate zones differently.
 local function addManagementTarget(dealer, coords)
     return exports.qbtarget:addSphereZone({
         coords = vector3(coords.x, coords.y, coords.z),

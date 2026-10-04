@@ -19,7 +19,10 @@ shared_scripts {
     'shared/functions.lua'
 }
 
-server_script 'server/**.lua'
+server_script {
+    'server/functions.lua',
+    'server/**.lua'
+}
 client_script 'client/**.lua'
 
 files { 'sql/001_dealerships.sql' }
