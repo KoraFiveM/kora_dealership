@@ -491,3 +491,24 @@ CreateThread(function()
     fn.publishSwaps()
     fn.publishStaff()
 end)
+
+local clearance = 3.0
+function fn.getFreeSpawn(spawns, radius)
+    radius = radius or clearance
+    local vehicles = GetAllVehicles()
+    for i = 1, #spawns do
+        local c = spawns[i].coords
+        local point = vec3(c.x, c.y, c.z)
+        local blocked = false
+        for j = 1, #vehicles do
+            if #(GetEntityCoords(vehicles[j]) - point) <= radius then
+                blocked = true
+                break
+            end
+        end
+        if not blocked then
+            return spawns[i]
+        end
+    end
+    return spawns[1]
+end

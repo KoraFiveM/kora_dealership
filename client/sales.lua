@@ -23,16 +23,32 @@ end
 
 -- --- page -------------------------------------------------------------------------
 
-local function sellView()
-    local vehicleOptions, customerOptions = {}, {}
+-- In-stock vehicles as select options, sorted by name so a long list is easy to scan.
+-- The Vehicle field is `searchable`, so typing part of a label filters this list in the
+-- browser; nothing is re-sent to Lua while the employee types.
+local function stockedVehicleOptions()
+    local options = {}
     for _, vehicle in ipairs(context.vehicles or {}) do
-        if (tonumber(vehicle.stock) or 0) > 0 then
-            vehicleOptions[#vehicleOptions + 1] = {
+        local stock = math.floor(tonumber(vehicle.stock) or 0)
+        if stock > 0 then
+            local name = vehicle.name or vehicle.model
+            options[#options + 1] = {
                 value = vehicle.model,
-                label = ('%s  ·  $%d  ·  %d in stock'):format(vehicle.name or vehicle.model, math.floor(tonumber(vehicle.price) or 0), math.floor(tonumber(vehicle.stock) or 0)),
+                label = ('%s  ·  $%d  ·  %d in stock'):format(name, math.floor(tonumber(vehicle.price) or 0), stock),
+                sortKey = tostring(name):lower(),
             }
         end
     end
+    table.sort(options, function(a, b)
+        if a.sortKey ~= b.sortKey then return a.sortKey < b.sortKey end
+        return a.value < b.value
+    end)
+    for _, option in ipairs(options) do option.sortKey = nil end
+    return options
+end
+
+local function sellView()
+    local vehicleOptions, customerOptions = stockedVehicleOptions(), {}
     for _, customer in ipairs(context.nearby or {}) do
         customerOptions[#customerOptions + 1] = { value = tostring(customer.source), label = ('%s (#%d)'):format(customer.name, customer.source) }
     end
@@ -56,7 +72,8 @@ local function sellView()
             description = entry and ('Allowed price range for this vehicle: $%d - $%d'):format(minPrice, maxPrice) or nil,
             fields = {
                 { id = 'customer', label = 'Customer', type = 'select', options = customerOptions, required = true },
-                { id = 'model', label = 'Vehicle', type = 'select', options = vehicleOptions, default = model, required = true },
+                { id = 'model', label = 'Vehicle', type = 'select', options = vehicleOptions, default = model, required = true,
+                    searchable = true, placeholder = 'Type to search vehicles' },
                 { id = 'price', label = 'Price', type = 'range', min = minPrice, max = maxPrice, step = 1,
                     default = entry and math.floor(tonumber(entry.price) or minPrice) or minPrice, required = true },
             },
@@ -149,13 +166,8 @@ local function openSales(dealer)
 
         dealerId = dealer
         context = result
-        selectedModel = nil
-        for _, vehicle in ipairs(context.vehicles or {}) do
-            if (tonumber(vehicle.stock) or 0) > 0 then
-                selectedModel = vehicle.model
-                break
-            end
-        end
+        local firstOption = stockedVehicleOptions()[1]
+        selectedModel = firstOption and firstOption.value or nil
 
         QB.nui.updateApp(appId, { navigation = buildNavigation() })
         QB.nui.openApp(appId, { viewId = 'sell' })

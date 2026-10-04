@@ -76,7 +76,7 @@ QB.callback.register('qbdealership:confirmPurchase', function(src, dealer, index
     if not record then return fn.fail(entry) end
     if not fn.inStock(record, entry) then return fn.fail('That vehicle is out of stock.') end
 
-    local spawn = record.spawns[1]
+    local spawn = fn.getFreeSpawn(record.spawns)
     if not spawn then return fn.fail('This dealership has no spawn point.') end
 
     local price = entry.price

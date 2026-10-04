@@ -213,7 +213,6 @@ local vehicleActions = {
                 TriggerServerEvent('qbdealership:endTestDrive')
                 return notify('The test vehicle did not load.')
             end
-            TaskWarpPedIntoVehicle(ped, vehicle, -1)
             notify('Test drive started. Get out of the vehicle to end it.', 'info')
             Wait(1500)
             while DoesEntityExist(vehicle) and GetVehiclePedIsIn(PlayerPedId(), false) == vehicle do Wait(500) end

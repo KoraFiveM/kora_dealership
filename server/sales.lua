@@ -33,6 +33,7 @@ QB.callback.register('qbdealership:sales:open', function(src, dealer)
     }
 end)
 
+
 local function sell(src, dealer, customerSource, model, price)
     local record, err = authorizeSale(src, dealer)
     if not record then return fn.fail(err) end
@@ -45,7 +46,7 @@ local function sell(src, dealer, customerSource, model, price)
     if not entry then return fn.fail('That vehicle is not sold here.') end
     if not fn.inStock(record, entry) then return fn.fail('That vehicle is out of stock.') end
 
-    local spawn = record.spawns[1]
+    local spawn = fn.getFreeSpawn(record.spawns)
     if not spawn then return fn.fail('This dealership has no spawn point.') end
 
     local minPrice, maxPrice = DealershipOrders.priceBounds(entry.price, fn.management(dealer).settings.maxPriceOverride)
@@ -74,7 +75,6 @@ local function sell(src, dealer, customerSource, model, price)
 
     fn.adjustStock(dealer, model, -1)
     local netId = fn.deliverVehicle(customer, model, spawn)
-    QB.print.debug(netId)
     if not netId then
         fn.adjustStock(dealer, model, 1)
         exports.qbcore:addMoney(customer, account, finalPrice)
