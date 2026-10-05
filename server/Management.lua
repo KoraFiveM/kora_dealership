@@ -1,4 +1,13 @@
-local registerCall = QB.callback.register
+local registered, failed = 0, 0
+local function registerCall(name, handler)
+    local ok, err = pcall(function() QB.callback.register(name, handler) end)
+    if ok then
+        registered = registered + 1
+    else
+        failed = failed + 1
+        print(('^1[qbdealership] FAILED to register %s: %s^7'):format(name, tostring(err)))
+    end
+end
 
 local function inZoneAndCan(src, dealer, index, ownerOnly)
     assert((ownerOnly and fn.isOwner(src, dealer)) or (not ownerOnly and (fn.isOwner(src, dealer) or fn.isEmployee(src, dealer))), 'Only the employees can open management.')
@@ -163,11 +172,29 @@ local function validateNewEntries(record, field, list)
     return true
 end
 
-registerCall('qbdealership:management:save', function(src, dealer, index, employee, perm)
-    if not inZoneAndCan(src, dealer, index, true) then return end
-    if not employee or not perm then return fn.fail('Invalid employee or permission.') end
-    return updatePermission(dealer, employee, perm)
-end, true)
+registerCall('qbdealership:management:save', function(src, dealer, index, patch)
+    if not inZoneAndCan(src, dealer, index, false) then return end
+    if type(patch) ~= 'table' then return fn.fail('Nothing to save.') end
+
+    local record = Dealerships[dealer]
+    local owner = fn.isOwner(src, dealer)
+
+    local allowed = {}
+    for field in pairs(fieldNames) do
+        if patch[field] ~= nil then
+            if not owner and not (field == 'placements' and fn.canEmployeeDo(src, dealer, 'manageDisplay')) then
+                return fn.fail('You are not permitted to edit that.')
+            end
+
+            local valid, reason = validateNewEntries(record, field, patch[field])
+            if not valid then return fn.fail(reason) end
+            allowed[field] = patch[field]
+        end
+    end
+    if next(allowed) == nil then return fn.fail('Nothing to save.') end
+
+    return fn.patchDealership(dealer, allowed)
+end)
 
 
 
@@ -179,7 +206,7 @@ registerCall('qbdealership:management:depositFunds', function(src, dealer, index
     local balance = DealerData[dealer].balance
     balance = balance + amount
     DealerData[dealer].balance = balance
-    QB.sql.query('UPDATE dealership_management SET current_balance = ? WHERE dealer = ?', { balance, dealer })
+    QB.sql.query('UPDATE qbdealership_management SET current_balance = ? WHERE dealership_id = ?', { balance, dealer })
 
     return { balance = balance }
 end)
@@ -195,7 +222,7 @@ registerCall('qbdealership:management:withdrawFunds', function(src, dealer, inde
     if balance < amount then return fn.fail('The dealership does not have enough funds.') end
     balance = balance - amount
     DealerData[dealer].balance = balance
-    QB.sql.query('UPDATE dealership_management SET current_balance = ? WHERE dealer = ?', { balance, dealer })
+    QB.sql.query('UPDATE qbdealership_management SET current_balance = ? WHERE dealership_id = ?', { balance, dealer })
     exports.qbcore:addMoney(src, 'bank', amount)
     return { balance = balance }
 end)
@@ -210,7 +237,14 @@ registerCall('qbdealership:management:orderVehicle', function(_, dealer, index, 
 
     model = type(model) == 'string' and model:lower()
 
-    local entry = model and fn.findVehicle(dealer, model)
+    local entry = nil
+    for i = 1, #Dealerships[dealer].vehicles do
+        local v = Dealerships[dealer].vehicles[i]
+        if v.model:lower() == model then
+            entry = v
+            break
+        end
+    end
     if not entry then return fn.fail('That vehicle is not sold here.') end
 
     if (tonumber(entry.stock) or 0) + amount > Config.maxStock then
@@ -224,7 +258,7 @@ registerCall('qbdealership:management:orderVehicle', function(_, dealer, index, 
         return fn.fail(('Not enough dealership funds ($%d needed, $%d available).'):format(cost, data.balance))
     end
     data.balance = data.balance - cost
-    QB.sql.query('UPDATE dealership_management SET current_balance = ? WHERE dealer = ?', { data.balance, dealer })
+    QB.sql.query('UPDATE qbdealership_management SET current_balance = ? WHERE dealership_id = ?', { data.balance, dealer })
     fn.adjustStock(dealer, model, amount)
     return { record = Dealerships[dealer], cost = cost, amount = amount }
 end)
@@ -357,3 +391,5 @@ registerCall('qbdealership:management:resolveOffer', function(src, dealer, offer
     refreshOfferCache(dealer)
     return loadOffers(record, onlineNames())
 end)
+
+print(('[qbdealership] management callbacks: %d registered, %d failed'):format(registered, failed))

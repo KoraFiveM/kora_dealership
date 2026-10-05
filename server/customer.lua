@@ -1,4 +1,4 @@
-
+QB.print.debug('qbdealership server/customer.lua loaded.')
 local testDrives = {}
 
 local testDriveDistance = 5.0

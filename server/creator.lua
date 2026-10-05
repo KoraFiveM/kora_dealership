@@ -1,4 +1,4 @@
-
+QB.print.debug('qbdealership server/creator.lua loaded.')
 local function slug(value)
     value = type(value) == 'string' and value:lower():gsub('[^a-z0-9_-]', '-') or ''
     value = value:gsub('%-+', '-'):gsub('^%-', ''):gsub('%-$', '')

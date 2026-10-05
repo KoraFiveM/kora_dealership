@@ -1,5 +1,5 @@
 Dealerships, Swaps, DealerData, Offers, fn = {}, {}, {}, {}, {}
-
+QB.print.debug('qbdealership server/functions.lua loaded.')
 local publicStock = 9999
 local defaultSettings = { maxPriceOverride = 10, commission = 5, employeeDiscount = 5 }
 
