@@ -7,6 +7,7 @@ Config.maxPrice = 5000000
 Config.swapDistance = 6.0   -- server-checked max distance from the placement
 Config.swapCooldown = 1000  -- ms between swaps per player
 Config.autoConfirmOffersDays = 14 -- Number of days after which offers are automatically confirmed
+Config.offersPageLimit = 50       -- most offers shown in each list (pending / active) on the management Offers page
 
 -- Owner management portal
 Config.managementDistance = 5.0      -- server-checked max distance from a management point

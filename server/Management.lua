@@ -1,5 +1,3 @@
--- Owner management portal: employees, permissions, settings, funds, stock orders and
--- the owner-editable placements, spawns and zone points.
 
 local function authorize(src, dealer, skipDistance)
     local record = Dealerships[dealer]
@@ -263,4 +261,140 @@ register('orderVehicle', function(_, record, model, quantity)
 
     fn.adjustStock(record.id, model, amount)
     return { record = Dealerships[record.id], cost = cost, amount = amount }
+end)
+
+-- --- offers -----------------------------------------------------------------------------------
+
+-- The Offers page is visible to the owner AND to employees granted 'handleOffers', while every
+-- other callback in this file is owner-only, so it does its own authorization.
+local function authorizeOffers(src, dealer)
+    local record = Dealerships[dealer]
+    if not record or record.type ~= 'owned' then return nil, 'This dealership is not owned.' end
+    if not fn.canEmployeeDo(src, dealer, 'handleOffers') then return nil, 'You are not permitted to view offers here.' end
+    if not fn.nearAny(src, record.managementZones, Config.managementDistance) then
+        return nil, 'You are too far from the management point.'
+    end
+    return record
+end
+
+-- offers.auto_accept_at is stored as a UTC string; depending on the SQL wrapper a datetime comes
+-- back as a string or as epoch milliseconds, so accept both.
+local function formatTime(value)
+    if not value or value == QB.sql.NULL then return nil end
+    if type(value) == 'number' then
+        local seconds = value > 1e11 and math.floor(value / 1000) or math.floor(value)
+        return os.date('!%Y-%m-%d %H:%M UTC', seconds)
+    end
+    return tostring(value):sub(1, 16) .. ' UTC'
+end
+
+-- citizenid -> name for everyone online; offline offerors fall back to their citizenid.
+local function onlineNames()
+    local names = {}
+    for _, id in ipairs(GetPlayers()) do
+        local player = tonumber(id)
+        local cid = player and fn.citizenId(player)
+        if cid then names[cid] = fn.playerName(player) end
+    end
+    return names
+end
+
+local function toOffer(record, row, names)
+    local entry = fn.findVehicle(record, row.model)
+    return {
+        id = row.id,
+        model = row.model,
+        name = entry and entry.name or row.model,
+        asking = entry and math.floor(tonumber(entry.price) or 0) or nil,
+        price = math.floor(tonumber(row.offer_price) or 0),
+        terms = row.offer_text or '',
+        offeror = names[row.offeror] or row.offeror,
+        status = row.status,
+        -- who handled it (the `acceptor` column is set for denials too)
+        handledBy = row.acceptor and (names[row.acceptor] or row.acceptor) or nil,
+        expiry = formatTime(row.auto_accept_at),
+    }
+end
+
+local offerColumns = '`id`, `model`, `offer_price`, `offer_text`, `auto_accept_at`, `status`, `offeror`, `acceptor`'
+
+-- pending = waiting on a decision (left); history = everything already accepted or denied (right).
+local function loadOffers(record, names)
+    local limit = math.max(1, math.floor(tonumber(Config.offersPageLimit) or 50))
+
+    local pendingRows = QB.sql.query(
+        'SELECT ' .. offerColumns .. ' FROM `qbdealership_offers` WHERE `dealership_id` = ? AND `status` = ? '
+        .. ('ORDER BY `id` DESC LIMIT %d'):format(limit),
+        { record.id, 'pending' }
+    ) or {}
+
+    local historyRows = QB.sql.query(
+        'SELECT ' .. offerColumns .. ' FROM `qbdealership_offers` WHERE `dealership_id` = ? AND `status` IN (?, ?) '
+        .. ('ORDER BY `updated_at` DESC, `id` DESC LIMIT %d'):format(limit),
+        { record.id, 'accepted', 'denied' }
+    ) or {}
+
+    local result = { pending = {}, history = {} }
+    for _, row in ipairs(pendingRows) do result.pending[#result.pending + 1] = toOffer(record, row, names) end
+    for _, row in ipairs(historyRows) do result.history[#result.history + 1] = toOffer(record, row, names) end
+    return result
+end
+
+-- The in-memory `Offers` cache only holds pending offers, so rebuild it after one is resolved.
+local function refreshOfferCache(dealer)
+    Offers[dealer] = nil
+    local rows = QB.sql.query('SELECT * FROM `qbdealership_offers` WHERE `dealership_id` = ? AND `status` = ?', { dealer, 'pending' }) or {}
+    for _, row in ipairs(rows) do
+        Offers[dealer] = Offers[dealer] or {}
+        table.insert(Offers[dealer], {
+            model = row.model,
+            price = row.offer_price,
+            additional = row.offer_text,
+            offeror = row.offeror,
+            expiry = row.auto_accept_at,
+        })
+    end
+end
+
+QB.callback.register('qbdealership:management:getOffers', function(src, dealer)
+    local record, err = authorizeOffers(src, dealer)
+    if not record then return fn.fail(err) end
+    return loadOffers(record, onlineNames())
+end)
+
+local decisions = { accept = 'accepted', deny = 'denied' }
+
+local function getOfferData(dealer, offerId)
+    for i = 1, #Offers[dealer] do
+        QB.print.debug(Offers[dealer][i], offerId)
+        if Offers[dealer][i].id == offerId then
+            return Offers[dealer][i]
+        end
+    end
+    return nil
+end
+QB.callback.register('qbdealership:management:resolveOffer', function(src, dealer, offerId, decision)
+    local record, err = authorizeOffers(src, dealer)
+    if not record then return fn.fail(err) end
+
+    local status = decisions[decision]
+    local id = math.tointeger(tonumber(offerId))
+    if not status or not id then return fn.fail('Invalid offer.') end
+    local row = (QB.sql.query('SELECT `status` FROM `qbdealership_offers` WHERE `id` = ? AND `dealership_id` = ?', { id, record.id }) or {})[1]
+    if not row then return fn.fail('That offer no longer exists.') end
+    if row.status ~= 'pending' then return fn.fail('That offer has already been handled.') end
+--
+    local cid = fn.citizenId(src)
+    QB.sql.query(
+        'UPDATE `qbdealership_offers` SET `status` = ?, `acceptor` = ? WHERE `id` = ? AND `dealership_id` = ? AND `status` = ?',
+        { status, cid, id, record.id, 'pending' }
+    )
+--
+    local after = (QB.sql.query('SELECT `status`, `acceptor` FROM `qbdealership_offers` WHERE `id` = ? AND `dealership_id` = ?', { id, record.id }) or {})[1]
+    if not after or after.status ~= status or after.acceptor ~= cid then
+        return fn.fail('That offer has already been handled.')
+    end
+    fn.deliverVehicle(getOfferData(dealer, offerId).offeror, getOfferData(dealer, offerId).model, fn.getFreeSpawn(Dealerships[dealer].spawns))
+    refreshOfferCache(dealer)
+    return loadOffers(record, onlineNames())
 end)

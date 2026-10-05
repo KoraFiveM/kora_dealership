@@ -133,16 +133,27 @@ function fn.createVehicle(model, coords)
 end
 
 function fn.deliverVehicle(src, model, spawn)
+    local online = true
+    QB.print.debug(src, model, spawn, type(src), #src)
     local vehicle = fn.createVehicle(model, spawn.coords)
     if not vehicle then return nil end
 
     local plate = GetVehicleNumberPlateText(vehicle)
     QB.sql.query('INSERT INTO player_vehicles (plate, vehicle, citizenid, state, fuel, engine_health, body_health, balance, paymentamount, paymentsleft, financetime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', {
-        plate, model, fn.citizenId(src) or '', 'out', 100.0, 1000.0, 1000.0, 0, 0, 0, 0,
+        plate, model, online and fn.citizenId(src) or src, 'out', 100.0, 1000.0, 1000.0, 0, 0, 0, 0,
     })
-    exports.qbvehiclekeys:giveKeys(src, plate)
-    TaskWarpPedIntoVehicle(GetPlayerPed(src), vehicle, -1)
-    return NetworkGetNetworkIdFromEntity(vehicle)
+    if not online then
+        return true
+    end
+    if type(src) ~= 'number' and #src == 8 then
+        online = false
+        DeleteEntity(vehicle)
+        return nil
+    else
+        exports.qbvehiclekeys:giveKeys(src, plate)
+        TaskWarpPedIntoVehicle(GetPlayerPed(src), vehicle, -1)
+    end
+    return NetworkGetNetworkIdFromEntity(vehicle) or nil
 end
 
 
@@ -293,18 +304,23 @@ function fn.canEmployeeDo(src, dealer, action)
 end
 
 function fn.publishStaff()
-    local staff = {}
+    local staff, offerStaff = {}, {}
     for dealer, record in pairs(Dealerships) do
         if record.type == 'owned' and record.owner then
             staff[dealer] = { [record.owner] = true }
+            offerStaff[dealer] = { [record.owner] = true }
             for _, employee in ipairs(fn.management(dealer).employees) do
                 if hasPermission(dealer, employee.citizenid, 'sellVehicles') then
                     staff[dealer][employee.citizenid] = true
+                end
+                if hasPermission(dealer, employee.citizenid, 'handleOffers') then
+                    offerStaff[dealer][employee.citizenid] = true
                 end
             end
         end
     end
     GlobalState.DealershipStaff = staff
+    GlobalState.DealershipOfferStaff = offerStaff -- who may open the management Offers page
 end
 
 
@@ -484,6 +500,7 @@ CreateThread(function()
             additional = row.offer_text,
             offeror = row.offeror,
             expiry = row.auto_accept_at,
+            id = row.id,
         })
     end
 

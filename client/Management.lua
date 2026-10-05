@@ -13,6 +13,8 @@ local funds = { balance = 0, income = 0, spent = 0 }
 local currentView = 'orders'
 local pendingTool = nil
 local opening = false
+local portalOwner = false  -- true: full portal; false: an employee who can only see Offers
+local offers = { pending = {}, history = {} }
 
 local function notify(message, tone)
     QB.notify.send({ title = 'Dealership Management', message = message, type = tone or 'error' })
@@ -25,6 +27,24 @@ local function copyList(list)
 end
 
 local views = DealershipViews
+
+local function isOwner(dealer)
+    local data = exports.qbcore:getPlayerData()
+    local dealership = latest[dealer]
+    return data ~= nil and dealership ~= nil
+        and dealership.type == 'owned'
+        and data.citizenid ~= nil
+        and data.citizenid == dealership.owner
+end
+
+-- GlobalState.DealershipOfferStaff[dealer] is the owner plus every employee granted
+-- 'handleOffers' (published by server/functions.lua). Display only: the server re-checks.
+local function canHandleOffers(dealer)
+    local data = exports.qbcore:getPlayerData()
+    local handlers = GlobalState.DealershipOfferStaff
+    local set = handlers and handlers[dealer]
+    return data ~= nil and data.citizenid ~= nil and set ~= nil and set[data.citizenid] == true
+end
 
 -- --- pages -----------------------------------------------------------------------
 
@@ -171,9 +191,80 @@ local function settingsView()
     }
 end
 
+local function loadOffers()
+    local result, err = QB.callback.trigger('qbdealership:management:getOffers', dealerId)
+    if not result then notify(err or 'Could not load offers.') return false end
+    offers = { pending = result.pending or {}, history = result.history or {} }
+    return true
+end
+
+local function offerItem(offer, kind)
+    local price = math.floor(tonumber(offer.price) or 0)
+    local name = offer.name or offer.model or 'Vehicle'
+    local parts = { ('From %s'):format(offer.offeror or 'Unknown') }
+
+    local asking = tonumber(offer.asking)
+    if asking then
+        local diff = price - math.floor(asking)
+        parts[#parts + 1] = ('Asking $%d (%s$%d)'):format(asking, diff < 0 and '-' or '+', math.abs(diff))
+    end
+    if type(offer.terms) == 'string' and offer.terms ~= '' then
+        parts[#parts + 1] = ('Terms: %s'):format(offer.terms)
+    end
+
+    if kind == 'pending' then
+        if offer.expiry then parts[#parts + 1] = ('Auto-accepts %s'):format(offer.expiry) end
+        return {
+            id = tostring(offer.id),
+            label = ('%s  ·  $%d'):format(name, price),
+            description = table.concat(parts, '  ·  '),
+            icon = 'DollarSign',
+            actions = {
+                { id = 'offers:accept:' .. offer.id, label = 'Accept', variant = 'primary',
+                    confirm = ('Accept the $%d offer on the %s?'):format(price, name) },
+                { id = 'offers:deny:' .. offer.id, label = 'Deny', variant = 'destructive',
+                    confirm = ('Deny the $%d offer on the %s?'):format(price, name) },
+            },
+        }
+    end
+
+    local verdict = offer.status == 'accepted' and 'Accepted' or 'Denied'
+    if offer.handledBy then parts[#parts + 1] = ('%s by %s'):format(verdict, offer.handledBy) end
+    return {
+        id = tostring(offer.id),
+        label = ('%s  ·  $%d  ·  %s'):format(name, price, verdict),
+        description = table.concat(parts, '  ·  '),
+        icon = 'DollarSign',
+    }
+end
+
+local function offersView()
+    local pendingItems, historyItems = {}, {}
+    for _, offer in ipairs(offers.pending) do pendingItems[#pendingItems + 1] = offerItem(offer, 'pending') end
+    for _, offer in ipairs(offers.history) do historyItems[#historyItems + 1] = offerItem(offer, 'history') end
+
+    -- Pending is meant to sit on the left and History on the right. Blocks stack top to bottom
+    -- here; if the AppShell has a row/columns block, wrap these two lists in it.
+    return {
+        id = 'offers', label = 'Offers', icon = 'DollarSign',
+        content = {
+            title = 'Offers', description = 'Offers customers have made on this dealership\'s vehicles.',
+            blocks = {
+                { type = 'actions', actions = { { id = 'offers:refresh', label = 'Refresh', variant = 'outline' } } },
+                { type = 'list', id = 'offers-pending', title = ('Pending (%d)'):format(#pendingItems),
+                    items = pendingItems, empty = 'No pending offers.' },
+                { type = 'list', id = 'offers-history', title = ('History (%d)'):format(#historyItems),
+                    items = historyItems, empty = 'No accepted or denied offers yet.' },
+            },
+        },
+    }
+end
+
 local function buildNavigation()
     if not record then return { { id = 'orders', label = 'Management', icon = 'Briefcase',
         content = { title = 'Management', blocks = { { type = 'empty', title = 'This dealership is no longer available.' } } } } } end
+
+    if not portalOwner then return { offersView() } end
 
     return {
         views.placements(record),
@@ -185,6 +276,7 @@ local function buildNavigation()
         settingsView(),
         fundsView(),
         ordersView(),
+        offersView(),
     }
 end
 
@@ -212,6 +304,23 @@ local function onAction(actionId, context)
     if not dealerId then return { close = true } end
     local values = context and context.value or {}
     if context and type(context.viewId) == 'string' then currentView = context.viewId end
+
+    -- offers (the one page employees with 'handleOffers' can use)
+    if actionId == 'offers:refresh' then
+        if not loadOffers() then return refresh() end
+        return refresh({ tone = 'success', message = 'Offers refreshed.' })
+    end
+    local decision, offerId = actionId:match('^offers:(%a+):(%d+)$')
+    if decision == 'accept' or decision == 'deny' then
+        local result, err = QB.callback.trigger('qbdealership:management:resolveOffer', dealerId, tonumber(offerId), decision)
+        if not result then
+            loadOffers() -- drop anything that was already handled by someone else
+            return fail(err or 'Could not update that offer.')
+        end
+        offers = { pending = result.pending or {}, history = result.history or {} }
+        return refresh({ tone = 'success', message = decision == 'accept' and 'Offer accepted.' or 'Offer denied.' })
+    end
+    if not portalOwner then return refresh() end
 
     -- placements
     if actionId == 'placements:add' then
@@ -394,10 +503,22 @@ local function openPortal(dealer)
     local ok, err = pcall(function()
         dealerId = dealer
         record = latest[dealer]
+        offers = { pending = {}, history = {} }
         if not record then return notify('This dealership is no longer available.') end
-        if not loadData() then return end
 
-        currentView = 'orders'
+        portalOwner = isOwner(dealer)
+        if not portalOwner and not canHandleOffers(dealer) then
+            return notify('You do not have access to management here.')
+        end
+
+        if portalOwner then
+            if not loadData() then return end
+            loadOffers() -- a failure is already reported; the rest of the portal still works
+        elseif not loadOffers() then
+            return
+        end
+
+        currentView = portalOwner and 'orders' or 'offers'
         while true do
             QB.nui.updateApp(appId, { navigation = buildNavigation() })
             QB.nui.openApp(appId, { viewId = currentView })
@@ -407,19 +528,11 @@ local function openPortal(dealer)
     end)
 
     dealerId, record, pendingTool = nil, nil, nil
+    portalOwner = false
     opening = false
     if not ok then error(err, 0) end
 end
 
-
-local function isOwner(dealer)
-    local data = exports.qbcore:getPlayerData()
-    local dealership = latest[dealer]
-    return data ~= nil and dealership ~= nil
-        and dealership.type == 'owned'
-        and data.citizenid ~= nil
-        and data.citizenid == dealership.owner
-end
 
 local function addManagementTarget(dealer, coords)
     return exports.qbtarget:addSphereZone({
@@ -429,7 +542,7 @@ local function addManagementTarget(dealer, coords)
             {
                 icon = 'fas fa-briefcase',
                 label = 'Open management',
-                canInteract = function() return isOwner(dealer) end,
+                canInteract = function() return isOwner(dealer) or canHandleOffers(dealer) end,
                 onSelect = function() CreateThread(function() openPortal(dealer) end) end,
             },
         },
