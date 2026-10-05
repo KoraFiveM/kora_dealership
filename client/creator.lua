@@ -5,10 +5,6 @@ local currentView = 'dealerships'
 local pendingTool = nil -- set by onAction, consumed by the open loop below
 local vehicleCatalog = nil -- { {value=model, label=name}, ... }, built once
 
-local function notify(message, tone)
-    QB.notify.send({ title = 'Dealership Creator', message = message, type = tone or 'error' })
-end
-
 local function loadCatalog()
     if vehicleCatalog then return vehicleCatalog end
     local shared = exports['qb-core']:GetShared('Vehicles') or {}
@@ -21,7 +17,6 @@ local function loadCatalog()
     return list
 end
 
--- --- views -----------------------------------------------------------------
 
 local function dealershipsView()
     local list = QB.callback.trigger('qbdealership:list') or {}
@@ -206,13 +201,18 @@ local function vehiclesView()
     }
 end
 
+-- A row is no longer a delete button: removing is a deliberate click on its own button.
+local function deleteAction(id)
+    return { id = id, label = 'Delete', icon = 'Trash2', variant = 'destructive' }
+end
+
 local function placementsView(record)
     local items = {}
     for index, placement in ipairs(record.placements) do
         items[#items + 1] = {
             id = tostring(index), label = placement.model, icon = 'Car',
             description = ('%.1f, %.1f, %.1f'):format(placement.coords.x, placement.coords.y, placement.coords.z),
-            action = 'placements:remove:' .. index,
+            actions = { deleteAction('placements:remove:' .. index) },
         }
     end
 
@@ -249,7 +249,7 @@ local function spawnsView(record)
         items[#items + 1] = {
             id = tostring(index), label = ('Spawn %d'):format(index), icon = 'MapPin',
             description = ('%.1f, %.1f, %.1f'):format(spawn.coords.x, spawn.coords.y, spawn.coords.z),
-            action = 'spawns:remove:' .. index,
+            actions = { deleteAction('spawns:remove:' .. index) },
         }
     end
 
@@ -276,7 +276,7 @@ local function pointZonesView(spec, record)
         items[#items + 1] = {
             id = tostring(index), label = ('%s %d'):format(spec.noun, index), icon = 'MapPin',
             description = ('%.1f, %.1f, %.1f'):format(entry.coords.x, entry.coords.y, entry.coords.z),
-            action = spec.id .. ':remove:' .. index,
+            actions = { deleteAction(spec.id .. ':remove:' .. index) },
         }
     end
 

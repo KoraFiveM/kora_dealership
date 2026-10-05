@@ -28,17 +28,6 @@ end
 
 local views = DealershipViews
 
-local function isOwner(dealer)
-    local data = exports.qbcore:getPlayerData()
-    local dealership = latest[dealer]
-    return data ~= nil and dealership ~= nil
-        and dealership.type == 'owned'
-        and data.citizenid ~= nil
-        and data.citizenid == dealership.owner
-end
-
--- GlobalState.DealershipOfferStaff[dealer] is the owner plus every employee granted
--- 'handleOffers' (published by server/functions.lua). Display only: the server re-checks.
 local function canHandleOffers(dealer)
     local data = exports.qbcore:getPlayerData()
     local handlers = GlobalState.DealershipOfferStaff
@@ -86,7 +75,9 @@ local function employeesView()
     local items = {}
     for _, employee in ipairs(employees) do
         items[#items + 1] = {
-            id = employee.citizenid, label = employee.name, description = employee.citizenid, icon = 'User',
+            id = employee.citizenid, label = employee.name, icon = 'User',
+            description = ('%s  |  sales: %d  |  income: $%d'):format(
+                employee.citizenid, math.floor(tonumber(employee.sales) or 0), math.floor(tonumber(employee.income) or 0)),
             actions = {
                 { id = 'employees:remove:' .. employee.citizenid, label = 'Remove', icon = 'UserMinus', variant = 'destructive',
                     confirm = ('Remove %s from this dealership?'):format(employee.name) },
@@ -105,32 +96,46 @@ local function employeesView()
                         description = 'The server ID of the online player to hire.' } },
                     action = { id = 'employees:add', label = 'Add employee' },
                 },
-                { type = 'list', id = 'employee-list', title = 'Current employees', items = items, empty = 'No employees yet.' },
+                { type = 'list', id = 'employee-list', layout = 'cards', title = ('Current employees (%d)'):format(#items),
+                    items = items, empty = 'No employees yet.' },
             },
         },
     }
 end
 
+-- One card per employee; every permission is a toggle button (filled = allowed) that saves on click.
 local function permissionsView()
-    local blocks = {}
+    local items = {}
     for _, employee in ipairs(employees) do
-        blocks[#blocks + 1] = {
-            type = 'form', id = 'perm-' .. employee.citizenid, title = employee.name,
-            description = employee.citizenid,
-            fields = {
-                { id = 'permissions', label = 'Allowed to', type = 'multiselect', options = Config.employeePermissions,
-                    default = permissions[employee.citizenid] or {} },
-            },
-            action = { id = 'permissions:save:' .. employee.citizenid, label = 'Save permissions' },
+        local granted, actions = {}, {}
+        for _, value in ipairs(permissions[employee.citizenid] or {}) do granted[value] = true end
+
+        local count = 0
+        for _, permission in ipairs(Config.employeePermissions) do
+            local on = granted[permission.value] == true
+            if on then count = count + 1 end
+            actions[#actions + 1] = {
+                id = ('permissions:toggle:%s:%s'):format(employee.citizenid, permission.value),
+                label = permission.label, icon = on and 'Check' or 'Circle', variant = on and 'primary' or 'outline',
+            }
+        end
+
+        items[#items + 1] = {
+            id = employee.citizenid, label = employee.name, icon = 'ShieldCheck',
+            description = ('%s  |  %d of %d allowed'):format(employee.citizenid, count, #Config.employeePermissions),
+            actions = actions,
         }
-    end
-    if #blocks == 0 then
-        blocks[1] = { type = 'empty', title = 'Add an employee on the Employees page first.' }
     end
 
     return {
         id = 'permissions', label = 'Employee permissions', icon = 'ShieldCheck',
-        content = { title = 'Employee permissions', description = 'Choose what each employee is allowed to do.', blocks = blocks },
+        content = {
+            title = 'Employee permissions', description = 'Click a permission to turn it on or off for that employee.',
+            blocks = {
+                { type = 'list', id = 'permission-list', layout = 'cards', items = items,
+                    empty = 'Add an employee on the Employees page first.' },
+            },
+        },
     }
 end
 
@@ -141,24 +146,33 @@ local function fundsView()
             title = 'Dealership funds', description = 'Vehicle orders are paid from these funds, and vehicle sales pay into them.',
             blocks = {
                 {
-                    type = 'list', id = 'funds-summary', title = 'Balance',
+                    type = 'stats',
                     items = {
-                        { id = 'balance', label = ('Current balance: $%d'):format(funds.balance or 0), icon = 'Wallet' },
-                        { id = 'income', label = ('Total income: $%d'):format(funds.income or 0), icon = 'TrendingUp' },
-                        { id = 'spent', label = ('Total spent: $%d'):format(funds.spent or 0), icon = 'TrendingDown' },
+                        { label = 'Current balance', value = ('$%d'):format(funds.balance or 0), icon = 'Wallet', tone = 'success' },
+                        { label = 'Total income', value = ('$%d'):format(funds.income or 0), icon = 'TrendingUp', tone = 'success' },
+                        { label = 'Total spent', value = ('$%d'):format(funds.spent or 0), icon = 'TrendingDown', tone = 'warning' },
                     },
                 },
                 {
-                    type = 'form', id = 'funds-deposit', title = 'Deposit funds',
-                    description = 'Move money from your own bank account into the dealership\'s funds.',
-                    fields = { { id = 'amount', label = 'Amount', type = 'number', min = 1, required = true } },
-                    action = { id = 'funds:deposit', label = 'Deposit' },
-                },
-                {
-                    type = 'form', id = 'funds-withdraw', title = 'Withdraw funds',
-                    description = 'Move money from the dealership\'s funds into your own bank account.',
-                    fields = { { id = 'amount', label = 'Amount', type = 'number', min = 1, required = true } },
-                    action = { id = 'funds:withdraw', label = 'Withdraw', confirm = 'Withdraw this amount from the dealership\'s funds?' },
+                    type = 'list', id = 'funds-actions', layout = 'cards',
+                    items = {
+                        {
+                            id = 'deposit', label = 'Deposit funds', icon = 'ArrowDownToLine', tone = 'success',
+                            description = 'Move money from your own bank account into the dealership\'s funds.',
+                            actions = {
+                                { id = 'funds:deposit', label = 'Deposit', icon = 'ArrowDownToLine', variant = 'primary',
+                                    fields = { { id = 'amount', label = 'Amount', type = 'number', min = 1, required = true } } },
+                            },
+                        },
+                        {
+                            id = 'withdraw', label = 'Withdraw funds', icon = 'ArrowUpFromLine', tone = 'warning',
+                            description = 'Move money from the dealership\'s funds into your own bank account.',
+                            actions = {
+                                { id = 'funds:withdraw', label = 'Withdraw', icon = 'ArrowUpFromLine', variant = 'outline',
+                                    fields = { { id = 'amount', label = 'Amount', type = 'number', min = 1, required = true } } },
+                            },
+                        },
+                    },
                 },
             },
         },
@@ -243,17 +257,15 @@ local function offersView()
     for _, offer in ipairs(offers.pending) do pendingItems[#pendingItems + 1] = offerItem(offer, 'pending') end
     for _, offer in ipairs(offers.history) do historyItems[#historyItems + 1] = offerItem(offer, 'history') end
 
-    -- Pending is meant to sit on the left and History on the right. Blocks stack top to bottom
-    -- here; if the AppShell has a row/columns block, wrap these two lists in it.
     return {
         id = 'offers', label = 'Offers', icon = 'DollarSign',
         content = {
             title = 'Offers', description = 'Offers customers have made on this dealership\'s vehicles.',
             blocks = {
                 { type = 'actions', actions = { { id = 'offers:refresh', label = 'Refresh', variant = 'outline' } } },
-                { type = 'list', id = 'offers-pending', title = ('Pending (%d)'):format(#pendingItems),
+                { type = 'list', id = 'offers-pending', title = ('Pending (%d)'):format(#pendingItems), layout = 'cards',
                     items = pendingItems, empty = 'No pending offers.' },
-                { type = 'list', id = 'offers-history', title = ('History (%d)'):format(#historyItems),
+                { type = 'list', id = 'offers-history', title = ('History (%d)'):format(#historyItems), layout = 'cards',
                     items = historyItems, empty = 'No accepted or denied offers yet.' },
             },
         },
@@ -385,13 +397,19 @@ local function onAction(actionId, context)
         return refresh({ tone = 'success', message = 'Employee removed.' })
     end
 
-    -- employee permissions
-    local permissionTarget = actionId:match('^permissions:save:(.+)$')
+    -- employee permissions: each button flips one permission and saves straight away
+    local permissionTarget, permission = actionId:match('^permissions:toggle:([^:]+):([^:]+)$')
     if permissionTarget then
-        local map, err = QB.callback.trigger('qbdealership:management:savePermissions', dealerId, permissionTarget, values.permissions or {})
+        local granted, had = {}, false
+        for _, value in ipairs(permissions[permissionTarget] or {}) do
+            if value == permission then had = true else granted[#granted + 1] = value end
+        end
+        if not had then granted[#granted + 1] = permission end
+
+        local map, err = QB.callback.trigger('qbdealership:management:savePermissions', dealerId, permissionTarget, granted)
         if not map then return fail(err or 'Could not save permissions.') end
         permissions = map
-        return refresh({ tone = 'success', message = 'Permissions saved.' })
+        return refresh()
     end
 
     -- settings
@@ -506,7 +524,7 @@ local function openPortal(dealer)
         offers = { pending = {}, history = {} }
         if not record then return notify('This dealership is no longer available.') end
 
-        portalOwner = isOwner(dealer)
+        portalOwner = fn.isOwner(dealer)
         if not portalOwner and not canHandleOffers(dealer) then
             return notify('You do not have access to management here.')
         end
@@ -542,7 +560,7 @@ local function addManagementTarget(dealer, coords)
             {
                 icon = 'fas fa-briefcase',
                 label = 'Open management',
-                canInteract = function() return isOwner(dealer) or canHandleOffers(dealer) end,
+                canInteract = function() return fn.isOwner(dealer) or canHandleOffers(dealer) end,
                 onSelect = function() CreateThread(function() openPortal(dealer) end) end,
             },
         },

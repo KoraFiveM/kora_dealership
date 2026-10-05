@@ -11,21 +11,12 @@ local context = { vehicles = {}, maxPriceOverride = 0, nearby = {} }
 local selectedModel = nil
 local opening = false
 
-local function notify(message, tone)
-    QB.notify.send({ title = 'Dealership Sales', message = message, type = tone or 'error' })
-end
-
 local function findVehicleLocal(model)
     for _, vehicle in ipairs(context.vehicles or {}) do
         if vehicle.model == model then return vehicle end
     end
 end
 
--- --- page -------------------------------------------------------------------------
-
--- In-stock vehicles as select options, sorted by name so a long list is easy to scan.
--- The Vehicle field is `searchable`, so typing part of a label filters this list in the
--- browser; nothing is re-sent to Lua while the employee types.
 local function stockedVehicleOptions()
     local options = {}
     for _, vehicle in ipairs(context.vehicles or {}) do
@@ -100,7 +91,6 @@ local function fail(message)
     return refresh({ tone = 'destructive', message = message })
 end
 
--- --- actions ------------------------------------------------------------------------
 
 local function onAction(actionId, ctx)
     if not dealerId then return { close = true } end
@@ -116,8 +106,6 @@ local function onAction(actionId, ctx)
     return refresh()
 end
 
--- Recomputes the price slider's range/default the moment the chosen vehicle changes,
--- rather than letting a stale range from the previous vehicle linger.
 local function onChange(actionId, ctx)
     if actionId ~= 'sell:confirm' then return end
     local newModel = ctx.value and ctx.value.model
@@ -127,8 +115,6 @@ local function onChange(actionId, ctx)
     end
 end
 
--- Answered on whichever client the server addresses: the customer being offered a
--- vehicle, not the employee selling it. They choose cash or card, or decline.
 QB.callback.register('qbdealership:sales:confirmPurchase', function(details)
     details = type(details) == 'table' and details or {}
     local result = QB.nui.openInputDialog({
@@ -178,18 +164,6 @@ local function openSales(dealer)
     if not ok then error(err, 0) end
 end
 
--- --- sale point targets --------------------------------------------------------------
-
--- GlobalState.DealershipStaff[dealer] is the owner's citizenid plus any employee
--- granted 'sellVehicles' (published by server/Management.lua). The server re-checks
--- this on every callback -- this is only what decides whether the prompt shows.
-local function isSeller(dealer)
-    local data = exports.qbcore:getPlayerData()
-    local staff = GlobalState.DealershipStaff
-    local set = staff and staff[dealer]
-    return data ~= nil and data.citizenid ~= nil and set ~= nil and set[data.citizenid] == true
-end
-
 local function addSaleTarget(dealer, coords)
     return exports.qbtarget:addSphereZone({
         coords = vector3(coords.x, coords.y, coords.z),
@@ -198,7 +172,7 @@ local function addSaleTarget(dealer, coords)
             {
                 icon = 'fas fa-tags',
                 label = 'Sell a vehicle',
-                canInteract = function() return isSeller(dealer) end,
+                canInteract = function() return fn.isStaff(dealer) end,
                 onSelect = function() CreateThread(function() openSales(dealer) end) end,
             },
         },
