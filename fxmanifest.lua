@@ -19,10 +19,21 @@ shared_scripts {
     'shared/functions.lua'
 }
 
-server_script {
+server_scripts {
     'server/functions.lua',
-    'server/**.lua'
+    'server/creator.lua',
+    'server/customer.lua',
+    'server/sales.lua',
+    'server/Management.lua',
 }
-client_script 'client/**.lua'
 
-files { 'sql/001_dealerships.sql' }
+client_scripts {
+    'client/functions.lua',
+    'client/views.lua',
+    'client/creator.lua',
+    'client/customer.lua',
+    'client/sales.lua',
+    'client/Management.lua',
+}
+
+files { 'sql/dealers.sql' }

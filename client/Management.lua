@@ -1,52 +1,38 @@
-repeat Wait(100) until GlobalState.Dealerships ~= nil
+fn.waitForDealerships()
 
-local appId = 'qbdealership:management'
-
-local latest = GlobalState.Dealerships or {}
-local targets = {}      -- dealer -> { zone ids }
-local signatures = {}   -- dealer -> what the current targets were built from
-
+local APP_ID = 'qbdealership:management'
+local views = DealershipViews
+local indexId = nil
 local dealerId = nil
 local record = nil
 local employees, permissions, settings = {}, {}, {}
 local funds = { balance = 0, income = 0, spent = 0 }
+local offers = { pending = {}, history = {} }
 local currentView = 'orders'
 local pendingTool = nil
 local opening = false
-local portalOwner = false  -- true: full portal; false: an employee who can only see Offers
-local offers = { pending = {}, history = {} }
+local portalOwner = false  -- true: full portal; false: an employee limited to their permissions' pages
+local grantedPermissions = {}  -- employee only: permission -> true
 
-local function notify(message, tone)
-    QB.notify.send({ title = 'Dealership Management', message = message, type = tone or 'error' })
+local function can(permission)
+    return portalOwner or grantedPermissions[permission] == true
 end
 
-local function copyList(list)
-    local result = {}
-    for _, entry in ipairs(list or {}) do result[#result + 1] = entry end
-    return result
+-- Spawns and zones are owner-only; display placements also belong to 'manageDisplay'.
+local function canEditList(field)
+    return portalOwner or (field == 'placements' and grantedPermissions.manageDisplay == true)
 end
-
-local views = DealershipViews
-
-local function canHandleOffers(dealer)
-    local data = exports.qbcore:getPlayerData()
-    local handlers = GlobalState.DealershipOfferStaff
-    local set = handlers and handlers[dealer]
-    return data ~= nil and data.citizenid ~= nil and set ~= nil and set[data.citizenid] == true
-end
-
--- --- pages -----------------------------------------------------------------------
 
 local function ordersView()
     local items, options = {}, {}
     for _, vehicle in ipairs(record.vehicles or {}) do
-        local unit = DealershipOrders.unitCost(vehicle.price)
-        local name = vehicle.name or vehicle.model
+        local unitCost = DealershipOrders.unitCost(vehicle.price)
+        local name = fn.vehicleName(vehicle)
         items[#items + 1] = {
             id = vehicle.model, label = name, icon = 'Car',
-            description = ('In stock: %d  ·  $%d each wholesale'):format(math.floor(tonumber(vehicle.stock) or 0), unit),
+            description = ('In stock: %d  ·  $%d each wholesale'):format(fn.toInt(vehicle.stock), unitCost),
         }
-        options[#options + 1] = { value = vehicle.model, label = ('%s  ·  $%d each'):format(name, unit) }
+        options[#options + 1] = { value = vehicle.model, label = ('%s  ·  $%d each'):format(name, unitCost) }
     end
 
     local blocks = {}
@@ -77,7 +63,7 @@ local function employeesView()
         items[#items + 1] = {
             id = employee.citizenid, label = employee.name, icon = 'User',
             description = ('%s  |  sales: %d  |  income: $%d'):format(
-                employee.citizenid, math.floor(tonumber(employee.sales) or 0), math.floor(tonumber(employee.income) or 0)),
+                employee.citizenid, fn.toInt(employee.sales), fn.toInt(employee.income)),
             actions = {
                 { id = 'employees:remove:' .. employee.citizenid, label = 'Remove', icon = 'UserMinus', variant = 'destructive',
                     confirm = ('Remove %s from this dealership?'):format(employee.name) },
@@ -103,7 +89,6 @@ local function employeesView()
     }
 end
 
--- One card per employee; every permission is a toggle button (filled = allowed) that saves on click.
 local function permissionsView()
     local items = {}
     for _, employee in ipairs(employees) do
@@ -205,22 +190,29 @@ local function settingsView()
     }
 end
 
-local function loadOffers()
-    local result, err = QB.callback.trigger('qbdealership:management:getOffers', dealerId)
-    if not result then notify(err or 'Could not load offers.') return false end
+local function storeOffers(result)
     offers = { pending = result.pending or {}, history = result.history or {} }
+end
+
+local function loadOffers()
+    local ok, result, err = pcall(QB.callback.trigger, 'qbdealership:management:getOffers', dealerId, indexId)
+    if not ok or not result then
+        fn.notify((ok and err) or 'Could not load offers.')
+        return false
+    end
+    storeOffers(result)
     return true
 end
 
 local function offerItem(offer, kind)
-    local price = math.floor(tonumber(offer.price) or 0)
+    local price = fn.toInt(offer.price)
     local name = offer.name or offer.model or 'Vehicle'
     local parts = { ('From %s'):format(offer.offeror or 'Unknown') }
 
     local asking = tonumber(offer.asking)
     if asking then
-        local diff = price - math.floor(asking)
-        parts[#parts + 1] = ('Asking $%d (%s$%d)'):format(asking, diff < 0 and '-' or '+', math.abs(diff))
+        local difference = price - math.floor(asking)
+        parts[#parts + 1] = ('Asking $%d (%s$%d)'):format(asking, difference < 0 and '-' or '+', math.abs(difference))
     end
     if type(offer.terms) == 'string' and offer.terms ~= '' then
         parts[#parts + 1] = ('Terms: %s'):format(offer.terms)
@@ -252,10 +244,15 @@ local function offerItem(offer, kind)
     }
 end
 
+local function offerItems(list, kind)
+    local items = {}
+    for _, offer in ipairs(list) do items[#items + 1] = offerItem(offer, kind) end
+    return items
+end
+
 local function offersView()
-    local pendingItems, historyItems = {}, {}
-    for _, offer in ipairs(offers.pending) do pendingItems[#pendingItems + 1] = offerItem(offer, 'pending') end
-    for _, offer in ipairs(offers.history) do historyItems[#historyItems + 1] = offerItem(offer, 'history') end
+    local pendingItems = offerItems(offers.pending, 'pending')
+    local historyItems = offerItems(offers.history, 'history')
 
     return {
         id = 'offers', label = 'Offers', icon = 'DollarSign',
@@ -273,182 +270,161 @@ local function offersView()
 end
 
 local function buildNavigation()
-    if not record then return { { id = 'orders', label = 'Management', icon = 'Briefcase',
-        content = { title = 'Management', blocks = { { type = 'empty', title = 'This dealership is no longer available.' } } } } } end
+    if not record then
+        return { fn.emptyView('orders', 'Management', 'Briefcase', 'Management', 'This dealership is no longer available.') }
+    end
 
-    if not portalOwner then return { offersView() } end
+    if portalOwner then
+        return {
+            views.placements(record),
+            views.spawns(record),
+            views.pointZones(views.managementSpec, record),
+            views.pointZones(views.saleSpec, record),
+            employeesView(),
+            permissionsView(),
+            settingsView(),
+            fundsView(),
+            ordersView(),
+            offersView(),
+        }
+    end
 
-    return {
-        views.placements(record),
-        views.spawns(record),
-        views.pointZones(views.managementSpec, record),
-        views.pointZones(views.saleSpec, record),
-        employeesView(),
-        permissionsView(),
-        settingsView(),
-        fundsView(),
-        ordersView(),
-        offersView(),
+    local pages = {
+        { permission = 'manageDisplay', build = function() return views.placements(record) end },
+        { permission = 'orderVehicles', build = ordersView },
+        { permission = 'handleOffers', build = offersView },
     }
+
+    local navigation = {}
+    for _, page in ipairs(pages) do
+        if can(page.permission) then navigation[#navigation + 1] = page.build() end
+    end
+
+    if #navigation == 0 then
+        return { fn.emptyView('orders', 'Management', 'Briefcase', 'Management', 'You have not been given access to any management pages.') }
+    end
+    return navigation
 end
 
-local function refresh(notice)
-    QB.nui.updateApp(appId, { navigation = buildNavigation() })
-    return { update = { navigation = buildNavigation() }, notice = notice }
-end
+local refresh, fail = fn.appRefresher(APP_ID, buildNavigation)
 
-local function fail(message)
-    return refresh({ tone = 'destructive', message = message })
-end
-
--- --- actions ---------------------------------------------------------------------
 
 local function saveRecord(patch)
-    local result, err = QB.callback.trigger('qbdealership:management:save', dealerId, patch)
+    local result, err = QB.callback.trigger('qbdealership:management:save', dealerId, indexId, patch)
     if not result then return fail(err or 'Save failed.') end
     record = result
-    return refresh({ tone = 'success', message = 'Saved.' })
+    return refresh(fn.notice('Saved.'))
 end
 
-local pointSpecs = { views.managementSpec, views.saleSpec }
+local function onOfferAction(actionId)
+    if not can('handleOffers') then return nil end
 
-local function onAction(actionId, context)
-    if not dealerId then return { close = true } end
-    local values = context and context.value or {}
-    if context and type(context.viewId) == 'string' then currentView = context.viewId end
-
-    -- offers (the one page employees with 'handleOffers' can use)
     if actionId == 'offers:refresh' then
         if not loadOffers() then return refresh() end
-        return refresh({ tone = 'success', message = 'Offers refreshed.' })
+        return refresh(fn.notice('Offers refreshed.'))
     end
+
     local decision, offerId = actionId:match('^offers:(%a+):(%d+)$')
-    if decision == 'accept' or decision == 'deny' then
-        local result, err = QB.callback.trigger('qbdealership:management:resolveOffer', dealerId, tonumber(offerId), decision)
-        if not result then
-            loadOffers() -- drop anything that was already handled by someone else
-            return fail(err or 'Could not update that offer.')
-        end
-        offers = { pending = result.pending or {}, history = result.history or {} }
-        return refresh({ tone = 'success', message = decision == 'accept' and 'Offer accepted.' or 'Offer denied.' })
-    end
-    if not portalOwner then return refresh() end
+    if decision ~= 'accept' and decision ~= 'deny' then return nil end
 
-    -- placements
-    if actionId == 'placements:add' then
-        pendingTool = { kind = 'placement', model = values.model }
-        currentView = 'placements'
-        return { close = true }
+    local result, err = QB.callback.trigger('qbdealership:management:resolveOffer', dealerId, tonumber(offerId), decision)
+    if not result then
+        loadOffers()
+        return fail(err or 'Could not update that offer.')
     end
-    local removePlacement = actionId:match('^placements:remove:(%d+)$')
-    if removePlacement then
-        local kept = {}
-        for index, placement in ipairs(record.placements) do
-            if tostring(index) ~= removePlacement then kept[#kept + 1] = placement end
-        end
-        return saveRecord({ placements = kept })
-    end
+    storeOffers(result)
+    return refresh(fn.notice(decision == 'accept' and 'Offer accepted.' or 'Offer denied.'))
+end
 
-    -- spawns
-    if actionId == 'spawns:add' then
-        pendingTool = { kind = 'spawn' }
-        currentView = 'spawns'
-        return { close = true }
-    end
-    local removeSpawn = actionId:match('^spawns:remove:(%d+)$')
-    if removeSpawn then
-        local kept = {}
-        for index, spawn in ipairs(record.spawns) do
-            if tostring(index) ~= removeSpawn then kept[#kept + 1] = spawn end
-        end
-        return saveRecord({ spawns = kept })
-    end
-
-    -- management / sale points
-    for _, spec in ipairs(pointSpecs) do
-        if actionId == spec.id .. ':add' then
-            pendingTool = { kind = 'point', spec = spec }
-            currentView = spec.id
-            return { close = true }
-        end
-        local removeIndex = actionId:match('^' .. spec.id .. ':remove:(%d+)$')
-        if removeIndex then
-            local kept = {}
-            for index, entry in ipairs(record[spec.field] or {}) do
-                if tostring(index) ~= removeIndex then kept[#kept + 1] = entry end
-            end
-            return saveRecord({ [spec.field] = kept })
-        end
-    end
-
-    -- employees
+local function onEmployeeAction(actionId, values)
     if actionId == 'employees:add' then
-        local list, err = QB.callback.trigger('qbdealership:management:addEmployee', dealerId, values.serverId)
+        local list, err = QB.callback.trigger('qbdealership:management:addEmployee', dealerId, indexId, values.serverId)
         if not list then return fail(err or 'Could not add the employee.') end
         employees = list
-        return refresh({ tone = 'success', message = 'Employee added.' })
+        return refresh(fn.notice('Employee added.'))
     end
-    local removeEmployee = actionId:match('^employees:remove:(.+)$')
-    if removeEmployee then
-        local list, err = QB.callback.trigger('qbdealership:management:removeEmployee', dealerId, removeEmployee)
+
+    local removedId = actionId:match('^employees:remove:(.+)$')
+    if removedId then
+        local list, err = QB.callback.trigger('qbdealership:management:removeEmployee', dealerId, indexId, removedId)
         if not list then return fail(err or 'Could not remove the employee.') end
         employees = list
-        permissions[removeEmployee] = nil
-        return refresh({ tone = 'success', message = 'Employee removed.' })
+        permissions[removedId] = nil
+        return refresh(fn.notice('Employee removed.'))
     end
 
-    -- employee permissions: each button flips one permission and saves straight away
-    local permissionTarget, permission = actionId:match('^permissions:toggle:([^:]+):([^:]+)$')
-    if permissionTarget then
-        local granted, had = {}, false
-        for _, value in ipairs(permissions[permissionTarget] or {}) do
-            if value == permission then had = true else granted[#granted + 1] = value end
+    local employeeId, permission = actionId:match('^permissions:toggle:([^:]+):([^:]+)$')
+    if employeeId then
+        local granted, hadPermission = {}, false
+        for _, value in ipairs(permissions[employeeId] or {}) do
+            if value == permission then hadPermission = true else granted[#granted + 1] = value end
         end
-        if not had then granted[#granted + 1] = permission end
+        if not hadPermission then granted[#granted + 1] = permission end
 
-        local map, err = QB.callback.trigger('qbdealership:management:savePermissions', dealerId, permissionTarget, granted)
+        local map, err = QB.callback.trigger('qbdealership:management:savePermissions', dealerId, indexId, employeeId, granted)
         if not map then return fail(err or 'Could not save permissions.') end
         permissions = map
         return refresh()
     end
+end
 
-    -- settings
+local function onBusinessAction(actionId, values)
     if actionId == 'settings:save' then
-        local saved, err = QB.callback.trigger('qbdealership:management:saveSettings', dealerId, values)
+        local saved, err = QB.callback.trigger('qbdealership:management:saveSettings', dealerId, indexId, values)
         if not saved then return fail(err or 'Could not save settings.') end
         settings = saved
-        return refresh({ tone = 'success', message = 'Settings saved.' })
+        return refresh(fn.notice('Settings saved.'))
     end
 
-    -- funds
-    if actionId == 'funds:deposit' then
-        local result, err = QB.callback.trigger('qbdealership:management:depositFunds', dealerId, values.amount)
-        if not result then return fail(err or 'Could not deposit the funds.') end
+    if actionId == 'funds:deposit' or actionId == 'funds:withdraw' then
+        local isDeposit = actionId == 'funds:deposit'
+        local result, err = QB.callback.trigger('qbdealership:management:' .. (isDeposit and 'depositFunds' or 'withdrawFunds'), dealerId, indexId, values.amount)
+        if not result then return fail(err or ('Could not %s the funds.'):format(isDeposit and 'deposit' or 'withdraw')) end
         funds.balance = result.balance or funds.balance
-        return refresh({ tone = 'success', message = 'Funds deposited.' })
+        return refresh(fn.notice(isDeposit and 'Funds deposited.' or 'Funds withdrawn.'))
     end
-    if actionId == 'funds:withdraw' then
-        local result, err = QB.callback.trigger('qbdealership:management:withdrawFunds', dealerId, values.amount)
-        if not result then return fail(err or 'Could not withdraw the funds.') end
-        funds.balance = result.balance or funds.balance
-        return refresh({ tone = 'success', message = 'Funds withdrawn.' })
+end
+
+local function onOrderAction(actionId, values)
+    if actionId ~= 'orders:place' or not can('orderVehicles') then return nil end
+    local result, err = QB.callback.trigger('qbdealership:management:orderVehicle', dealerId, indexId, values.model, values.quantity)
+    if not result then return fail(err or 'Could not place the order.') end
+    record = result.record
+    funds.balance = (funds.balance or 0) - result.cost
+    funds.spent = (funds.spent or 0) + result.cost
+    return refresh(fn.notice(('Ordered %d for $%d.'):format(result.amount, result.cost)))
+end
+
+local function onListAction(actionId, values)
+    local tool, viewId = fn.aimToolFor(actionId, values)
+    if tool and canEditList(tool.field) then
+        pendingTool, currentView = tool, viewId
+        return { close = true }
     end
 
-    -- ordering stock
-    if actionId == 'orders:place' then
-        local result, err = QB.callback.trigger('qbdealership:management:orderVehicle', dealerId, values.model, values.quantity)
-        if not result then return fail(err or 'Could not place the order.') end
-        record = result.record
-        funds.balance = (funds.balance or 0) - result.cost
-        funds.spent = (funds.spent or 0) + result.cost
-        return refresh({ tone = 'success', message = ('Ordered %d for $%d.'):format(result.amount, result.cost) })
-    end
+    local field, kept = fn.removeFromList(actionId, record)
+    if field and canEditList(field) then return saveRecord({ [field] = kept }) end
+end
 
-    return refresh()
+local function onOwnerAction(actionId, values)
+    if not portalOwner then return nil end
+    return onEmployeeAction(actionId, values) or onBusinessAction(actionId, values)
+end
+
+local function onAction(actionId, actionContext)
+    if not dealerId then return { close = true } end
+    local values = actionContext and actionContext.value or {}
+    if actionContext and type(actionContext.viewId) == 'string' then currentView = actionContext.viewId end
+
+    return onOfferAction(actionId)
+        or onOrderAction(actionId, values)
+        or onListAction(actionId, values)
+        or onOwnerAction(actionId, values)
+        or refresh()
 end
 
 QB.nui.registerApp({
-    id = appId,
+    id = APP_ID,
     title = 'Dealership Management',
     icon = 'Briefcase',
     layout = 'standard',
@@ -459,155 +435,82 @@ QB.nui.registerApp({
     onAction = onAction,
 })
 
--- --- raycast tools (the shell closes while aiming) -----------------------------------
 
-local function runPendingTool()
-    local tool = pendingTool
-    pendingTool = nil
-
-    local function save(patch)
-        local result, err = QB.callback.trigger('qbdealership:management:save', dealerId, patch)
-        if result then record = result else notify(err or 'Save failed.') end
-    end
-
-    if tool.kind == 'point' then
-        local result = QB.raycast.getCoords({})
-        if result then
-            local list = copyList(record[tool.spec.field])
-            list[#list + 1] = { coords = result.coords }
-            save({ [tool.spec.field] = list })
-        end
-    elseif tool.kind == 'spawn' then
-        local result = QB.raycast.getCoords({ type = 'object', object = 'asbo' })
-        if result then
-            local list = copyList(record.spawns)
-            list[#list + 1] = { coords = result.coords }
-            save({ spawns = list })
-        end
-    elseif tool.kind == 'placement' then
-        local result = QB.raycast.getCoords({ type = 'object', object = tool.model })
-        if result then
-            local list = copyList(record.placements)
-            list[#list + 1] = { model = tool.model, coords = result.coords }
-            save({ placements = list })
-        end
-    end
+local function saveAimedRecord(patch)
+    local result, err = QB.callback.trigger('qbdealership:management:save', dealerId, indexId, patch)
+    if result then record = result else fn.notify(err or 'Save failed.') end
 end
 
-local function loadData()
-    local list, err = QB.callback.trigger('qbdealership:management:getEmployees', dealerId)
-    if not list then notify(err or 'Could not load employees.') return false end
-    employees = list
+local function permissionSet(permissionsByEmployee)
+    local data = exports.qbcore:getPlayerData()
+    local set = {}
+    for _, permission in ipairs(permissionsByEmployee[data.citizenid] or {}) do set[permission] = true end
+    return set
+end
 
-    local saved, settingsErr = QB.callback.trigger('qbdealership:management:getSettings', dealerId)
-    if not saved then notify(settingsErr or 'Could not load settings.') return false end
-    settings = saved
+local function loadManagementData()
+    local data, err = QB.callback.trigger('qbdealership:management:openOwnerManagement', dealerId, indexId)
+    if not data then
+        fn.notify(err or 'You do not have access to management here.')
+        return false
+    end
 
-    local map, permissionsErr = QB.callback.trigger('qbdealership:management:getEmployeePermissions', dealerId)
-    if not map then notify(permissionsErr or 'Could not load permissions.') return false end
-    permissions = map
-
-    local balanceData, fundsErr = QB.callback.trigger('qbdealership:management:getBalance', dealerId)
-    if not balanceData then notify(fundsErr or 'Could not load funds.') return false end
-    funds = balanceData
-
+    portalOwner = data.owner == true
+    funds = { balance = data.balance.balance, income = data.balance.income, spent = data.balance.spent }
+    if portalOwner then
+        employees, permissions, settings = data.employees, data.permissions, data.settings
+    else
+        grantedPermissions = permissionSet(data.permissions)
+    end
     return true
 end
 
-local function openPortal(dealer)
+local function prepareSession(dealer)
+    record = (GlobalState.Dealerships or {})[dealer]
+    offers = { pending = {}, history = {} }
+    grantedPermissions = {}
+    if not record then
+        fn.notify('This dealership is no longer available.')
+        return false
+    end
+
+    if not loadManagementData() then return false end
+    if can('handleOffers') then loadOffers() end
+    return true
+end
+
+local function openPortal(dealer, index)
     if opening then return end
     opening = true
-
-    local ok, err = pcall(function()
+    fn.withCleanup(function()
         dealerId = dealer
-        record = latest[dealer]
-        offers = { pending = {}, history = {} }
-        if not record then return notify('This dealership is no longer available.') end
+        indexId = index
+        if not prepareSession(dealer) then return end
 
-        portalOwner = fn.isOwner(dealer)
-        if not portalOwner and not canHandleOffers(dealer) then
-            return notify('You do not have access to management here.')
-        end
-
-        if portalOwner then
-            if not loadData() then return end
-            loadOffers() -- a failure is already reported; the rest of the portal still works
-        elseif not loadOffers() then
-            return
-        end
-
-        currentView = portalOwner and 'orders' or 'offers'
+        currentView = portalOwner and 'orders' or buildNavigation()[1].id
         while true do
-            QB.nui.updateApp(appId, { navigation = buildNavigation() })
-            QB.nui.openApp(appId, { viewId = currentView })
+            QB.nui.updateApp(APP_ID, { navigation = buildNavigation() })
+            QB.nui.openApp(APP_ID, { viewId = currentView })
             if not pendingTool then break end
-            runPendingTool()
+
+            local tool = pendingTool
+            pendingTool = nil
+            fn.runAimTool(tool, record, saveAimedRecord)
         end
+    end, function()
+        dealerId, indexId, record, pendingTool = nil, nil, nil, nil
+        portalOwner, opening = false, false
+        grantedPermissions = {}
     end)
-
-    dealerId, record, pendingTool = nil, nil, nil
-    portalOwner = false
-    opening = false
-    if not ok then error(err, 0) end
 end
 
-
-local function addManagementTarget(dealer, coords)
-    return exports.qbtarget:addSphereZone({
-        coords = vector3(coords.x, coords.y, coords.z),
-        radius = Config.managementTargetRadius,
-        options = {
-            {
-                icon = 'fas fa-briefcase',
-                label = 'Open management',
-                canInteract = function() return fn.isOwner(dealer) or canHandleOffers(dealer) end,
-                onSelect = function() CreateThread(function() openPortal(dealer) end) end,
-            },
-        },
-    })
-end
-
-local function removeTargets(dealer)
-    for _, id in ipairs(targets[dealer] or {}) do
-        pcall(function() exports.qbtarget:removeZone(id) end)
-    end
-    targets[dealer] = nil
-    signatures[dealer] = nil
-end
-
-local function syncTargets()
-    for dealer, data in pairs(latest) do
-        local signature = data.type == 'owned' and json.encode(data.managementZones or {}) or nil
-        if signature ~= signatures[dealer] then
-            removeTargets(dealer)
-            if signature then
-                signatures[dealer] = signature
-                targets[dealer] = {}
-                for _, zone in ipairs(data.managementZones or {}) do
-                    local ok, id = pcall(addManagementTarget, dealer, zone.coords)
-                    if ok and id then
-                        targets[dealer][#targets[dealer] + 1] = id
-                    elseif not ok then
-                        print(('[qbdealership] could not add a management target: %s'):format(tostring(id)))
-                    end
-                end
-            end
-        end
-    end
-
-    for dealer in pairs(signatures) do
-        if not latest[dealer] then removeTargets(dealer) end
-    end
-end
-
-syncTargets()
-
-AddStateBagChangeHandler('Dealerships', 'global', function(_, _, value)
-    latest = value or {}
-    syncTargets()
-end)
-
-AddEventHandler('onResourceStop', function(resource)
-    if resource ~= GetCurrentResourceName() then return end
-    for dealer in pairs(targets) do removeTargets(dealer) end
-end)
+fn.keepTargetZones({
+    zoneField = 'managementZones',
+    radius = Config.managementTargetRadius,
+    icon = 'fas fa-briefcase',
+    label = 'Open management',
+    canInteract = function() return true end, -- the server decides who gets in (owner or employee)
+    open = function(dealer, index)
+        openPortal(dealer, index)
+    end,
+})

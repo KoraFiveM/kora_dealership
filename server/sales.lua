@@ -1,5 +1,3 @@
--- Owner/employee-assisted sales: staff pick a nearby customer, a vehicle and a price within the
--- dealership's allowed range; the customer confirms and pays, and the sale goes to the funds.
 
 local busy = {}
 

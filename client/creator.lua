@@ -1,9 +1,10 @@
 local APP_ID = 'qbdealership:creator'
+local views = DealershipViews
 
-local selected = nil   -- the currently-open dealership record (server's copy)
+local selected = nil        -- the currently-open dealership record (server's copy)
 local currentView = 'dealerships'
-local pendingTool = nil -- set by onAction, consumed by the open loop below
-local vehicleCatalog = nil -- { {value=model, label=name}, ... }, built once
+local pendingTool = nil     -- set by onAction, consumed by the open loop below
+local vehicleCatalog = nil  -- { { value = model, label = name }, ... }, built once
 
 local function loadCatalog()
     if vehicleCatalog then return vehicleCatalog end
@@ -16,7 +17,6 @@ local function loadCatalog()
     vehicleCatalog = list
     return list
 end
-
 
 local function dealershipsView()
     local list = QB.callback.trigger('qbdealership:list') or {}
@@ -117,263 +117,129 @@ end
 
 local function vehiclesView()
     local items = {}
-
     for _, vehicle in ipairs(selected.vehicles or {}) do
         items[#items + 1] = {
             id = vehicle.model,
-            label = vehicle.name or vehicle.model,
+            label = fn.vehicleName(vehicle),
             description = ('$%d'):format(tonumber(vehicle.price) or 1),
             icon = 'Car',
             action = 'vehicles:edit:' .. vehicle.model,
         }
     end
 
-    local vehicleOptions = {}
-
-    for _, vehicle in ipairs(selected.vehicles or {}) do
-        vehicleOptions[#vehicleOptions + 1] = {
-            value = vehicle.model,
-            label = vehicle.name or vehicle.model,
-        }
-    end
-
     return {
-        id = 'vehicles',
-        label = 'Vehicles',
-        icon = 'Car',
+        id = 'vehicles', label = 'Vehicles', icon = 'Car',
         content = {
             title = 'Dealership vehicles',
             description = 'Vehicles this dealership can display, place, and sell.',
             blocks = {
                 {
-                    type = 'form',
-                    id = 'vehicle-add',
-                    title = 'Add vehicle',
-                    fields = {
-                        {
-                            id = 'model',
-                            label = 'Vehicle',
-                            type = 'select',
-                            options = loadCatalog(),
-                            required = true,
-                        },
-                    },
-                    action = {
-                        id = 'vehicles:add',
-                        label = 'Add Vehicle',
-                    },
+                    type = 'form', id = 'vehicle-add', title = 'Add vehicle',
+                    fields = { { id = 'model', label = 'Vehicle', type = 'select', options = loadCatalog(), required = true } },
+                    action = { id = 'vehicles:add', label = 'Add Vehicle' },
                 },
                 {
-                    type = 'form',
-                    id = 'vehicle-price',
-                    title = 'Vehicle price',
+                    type = 'form', id = 'vehicle-price', title = 'Vehicle price',
                     fields = {
-                        {
-                            id = 'model',
-                            label = 'Vehicle',
-                            type = 'select',
-                            options = vehicleOptions,
-                            required = true,
-                        },
-                        {
-                            id = 'price',
-                            label = 'Sale Price',
-                            type = 'number',
-                            min = 1,
-                            max = Config.maxPrice,
-                            required = true,
-                        },
+                        { id = 'model', label = 'Vehicle', type = 'select', options = fn.vehicleOptions(selected.vehicles), required = true },
+                        { id = 'price', label = 'Sale Price', type = 'number', min = 1, max = Config.maxPrice, required = true },
                     },
-                    action = {
-                        id = 'vehicles:price',
-                        label = 'Save Price',
-                    },
+                    action = { id = 'vehicles:price', label = 'Save Price' },
                 },
-                {
-                    type = 'list',
-                    id = 'vehicle-list',
-                    title = 'Current vehicles',
-                    items = items,
-                    empty = 'No vehicles added yet.',
-                },
+                { type = 'list', id = 'vehicle-list', title = 'Current vehicles', items = items, empty = 'No vehicles added yet.' },
             },
         },
     }
 end
-
--- A row is no longer a delete button: removing is a deliberate click on its own button.
-local function deleteAction(id)
-    return { id = id, label = 'Delete', icon = 'Trash2', variant = 'destructive' }
-end
-
-local function placementsView(record)
-    local items = {}
-    for index, placement in ipairs(record.placements) do
-        items[#items + 1] = {
-            id = tostring(index), label = placement.model, icon = 'Car',
-            description = ('%.1f, %.1f, %.1f'):format(placement.coords.x, placement.coords.y, placement.coords.z),
-            actions = { deleteAction('placements:remove:' .. index) },
-        }
-    end
-
-    local vehicleOptions = {}
-    for _, vehicle in ipairs(record.vehicles) do
-        vehicleOptions[#vehicleOptions + 1] = {
-            value = vehicle.model,
-            label = vehicle.name or vehicle.model,
-        }
-    end
-
-    local blocks = {}
-    if #vehicleOptions > 0 then
-        blocks[#blocks + 1] = {
-            type = 'form', id = 'place', title = 'Place display vehicle',
-            description = 'Pick a vehicle, then aim at where it should appear in the world.',
-            fields = { { id = 'model', label = 'Vehicle', type = 'select', options = vehicleOptions, required = true } },
-            action = { id = 'placements:add', label = 'Place display vehicle' },
-        }
-    else
-        blocks[#blocks + 1] = { type = 'empty', title = 'Add a vehicle on the Vehicles tab first.' }
-    end
-    blocks[#blocks + 1] = { type = 'list', id = 'placement-list', title = 'Current placements', items = items, empty = 'No vehicles placed yet.' }
-
-    return {
-        id = 'placements', label = 'Placements', icon = 'MapPin',
-        content = { title = 'Display placements', description = 'Showroom vehicles customers see but can\'t take.', blocks = blocks },
-    }
-end
-
-local function spawnsView(record)
-    local items = {}
-    for index, spawn in ipairs(record.spawns) do
-        items[#items + 1] = {
-            id = tostring(index), label = ('Spawn %d'):format(index), icon = 'MapPin',
-            description = ('%.1f, %.1f, %.1f'):format(spawn.coords.x, spawn.coords.y, spawn.coords.z),
-            actions = { deleteAction('spawns:remove:' .. index) },
-        }
-    end
-
-    return {
-        id = 'spawns', label = 'Spawns', icon = 'MapPin',
-        content = {
-            title = 'Vehicle spawn points', description = 'Where a purchased/display vehicle is actually created. Add as many as you like.',
-            blocks = {
-                { type = 'actions', actions = { { id = 'spawns:add', label = 'Add spawn point', variant = 'primary' } } },
-                { type = 'list', id = 'spawn-list', title = 'Current spawn points', items = items, empty = 'No spawn points yet.' },
-            },
-        },
-    }
-end
-
--- Raycast picker for management/sale points: no preview model, just a coordinate.
-local function getCoords()
-    return QB.raycast.getCoords({})
-end
-
-local function pointZonesView(spec, record)
-    local items = {}
-    for index, entry in ipairs(record[spec.field] or {}) do
-        items[#items + 1] = {
-            id = tostring(index), label = ('%s %d'):format(spec.noun, index), icon = 'MapPin',
-            description = ('%.1f, %.1f, %.1f'):format(entry.coords.x, entry.coords.y, entry.coords.z),
-            actions = { deleteAction(spec.id .. ':remove:' .. index) },
-        }
-    end
-
-    return {
-        id = spec.id, label = spec.label, icon = spec.icon,
-        content = {
-            title = spec.title, description = spec.description,
-            blocks = {
-                { type = 'actions', actions = { { id = spec.id .. ':add', label = spec.addLabel, variant = 'primary' } } },
-                { type = 'list', id = spec.id .. '-list', title = spec.listTitle, items = items, empty = spec.empty },
-            },
-        },
-    }
-end
-
-local managementSpec = {
-    id = 'management', field = 'managementZones', noun = 'Management zone', label = 'Management', icon = 'Briefcase',
-    title = 'Management zones', description = 'Where the dealership owner and staff manage the business. Add as many as you like.',
-    addLabel = 'Add management zone', listTitle = 'Current management zones', empty = 'No management zones yet.',
-}
-
-local saleSpec = {
-    id = 'sales', field = 'saleZones', noun = 'Sale zone', label = 'Sales', icon = 'Tag',
-    title = 'Sale zones', description = 'Where vehicles are sold to customers. Add as many as you like.',
-    addLabel = 'Add sale zone', listTitle = 'Current sale zones', empty = 'No sale zones yet.',
-}
-
--- Shared with client/management.lua (the owner portal reuses these pages).
-DealershipViews = {
-    placements = placementsView,
-    spawns = spawnsView,
-    pointZones = pointZonesView,
-    managementSpec = managementSpec,
-    saleSpec = saleSpec,
-}
 
 local function buildNavigation()
-    local views = { dealershipsView() }
+    local navigation = { dealershipsView() }
     if selected then
-        views[#views + 1] = dataView()
-        views[#views + 1] = zoneView()
-        views[#views + 1] = vehiclesView()
-        views[#views + 1] = placementsView(selected)
-        views[#views + 1] = spawnsView(selected)
-        views[#views + 1] = pointZonesView(managementSpec, selected)
-        views[#views + 1] = pointZonesView(saleSpec, selected)
+        navigation[#navigation + 1] = dataView()
+        navigation[#navigation + 1] = zoneView()
+        navigation[#navigation + 1] = vehiclesView()
+        navigation[#navigation + 1] = views.placements(selected)
+        navigation[#navigation + 1] = views.spawns(selected)
+        navigation[#navigation + 1] = views.pointZones(views.managementSpec, selected)
+        navigation[#navigation + 1] = views.pointZones(views.saleSpec, selected)
     end
-    return views
+    return navigation
 end
 
-local function refresh(notice)
-    QB.nui.updateApp(APP_ID, { navigation = buildNavigation() })
-    return { update = { navigation = buildNavigation() }, notice = notice }
-end
+local refresh, fail = fn.appRefresher(APP_ID, buildNavigation)
 
--- --- actions -----------------------------------------------------------------
 
 local function saveSelected(patch)
     local result, err = QB.callback.trigger('qbdealership:save', selected.id, patch)
-    if not result then
-        return refresh({ tone = 'destructive', message = err or 'Save failed.' })
-    end
+    if not result then return fail(err or 'Save failed.') end
     selected = result
-    return refresh({ tone = 'success', message = 'Saved.' })
+    return refresh(fn.notice('Saved.'))
+end
+
+local function createDealership(label)
+    local record, err = QB.callback.trigger('qbdealership:create', label)
+    if not record then return fail(err or 'Could not create dealership.') end
+    selected, currentView = record, 'data'
+    return refresh(fn.notice('Dealership created.'))
+end
+
+local function selectDealership(id)
+    local record, err = QB.callback.trigger('qbdealership:get', id)
+    if not record then return fail(err or 'Could not open dealership.') end
+    selected, currentView = record, 'data'
+    return refresh()
+end
+
+local function deleteSelected()
+    local confirmation = QB.nui.openAlert({
+        title = 'Delete dealership', message = ('Delete "%s"? This cannot be undone.'):format(selected.label),
+        confirmLabel = 'Delete',
+    })
+    if not confirmation or not confirmation.confirmed then return refresh() end
+
+    local ok, err = QB.callback.trigger('qbdealership:delete', selected.id)
+    if not ok then return fail(err or 'Delete failed.') end
+    selected, currentView = nil, 'dealerships'
+    return refresh(fn.notice('Dealership deleted.'))
+end
+
+local function addVehicle(model)
+    if not model then return fail('Vehicle is required.') end
+    if fn.findVehicle(selected.vehicles, model) then return fail('That vehicle is already added.') end
+    return saveSelected({ vehicles = fn.appended(selected.vehicles, { model = model }) })
+end
+
+local function setVehiclePrice(model, price)
+    if not model or not price then return fail('Vehicle and price are required.') end
+
+    local vehicles = {}
+    for _, vehicle in ipairs(selected.vehicles) do
+        vehicles[#vehicles + 1] = vehicle.model == model
+            and { model = vehicle.model, name = vehicle.name, price = price }
+            or vehicle
+    end
+    return saveSelected({ vehicles = vehicles })
+end
+
+local function removeVehicle(model)
+    local vehicles = {}
+    for _, vehicle in ipairs(selected.vehicles) do
+        if vehicle.model ~= model then vehicles[#vehicles + 1] = vehicle end
+    end
+    return saveSelected({ vehicles = vehicles })
 end
 
 local function onAction(actionId, context)
-    local values = context and context.value
+    local values = context and context.value or {}
 
-    if actionId == 'create' then
-        local record, err = QB.callback.trigger('qbdealership:create', values and values.label)
-        if not record then return refresh({ tone = 'destructive', message = err or 'Could not create dealership.' }) end
-        selected, currentView = record, 'data'
-        return refresh({ tone = 'success', message = 'Dealership created.' })
-    end
+    if actionId == 'create' then return createDealership(values.label) end
 
     local selectId = actionId:match('^select:(.+)$')
-    if selectId then
-        local record, err = QB.callback.trigger('qbdealership:get', selectId)
-        if not record then return refresh({ tone = 'destructive', message = err or 'Could not open dealership.' }) end
-        selected, currentView = record, 'data'
-        return refresh()
-    end
+    if selectId then return selectDealership(selectId) end
 
     if not selected then return refresh() end
 
-    if actionId == 'delete' then
-        local confirmation = QB.nui.openAlert({
-            title = 'Delete dealership', message = ('Delete "%s"? This cannot be undone.'):format(selected.label),
-            confirmLabel = 'Delete',
-        })
-        if not confirmation or not confirmation.confirmed then return refresh() end
-        local ok, err = QB.callback.trigger('qbdealership:delete', selected.id)
-        if not ok then return refresh({ tone = 'destructive', message = err or 'Delete failed.' }) end
-        selected, currentView = nil, 'dealerships'
-        return refresh({ tone = 'success', message = 'Dealership deleted.' })
-    end
+    if actionId == 'delete' then return deleteSelected() end
 
     if actionId == 'data:save' then
         return saveSelected({ label = values.label, type = values.type, price = tonumber(values.price), owner = values.owner })
@@ -383,111 +249,21 @@ local function onAction(actionId, context)
         pendingTool = { kind = 'zone' }
         return { close = true }
     end
-    if actionId == 'zone:clear' then
-        return saveSelected({ clearZone = true, zone = nil })
-    end
+    if actionId == 'zone:clear' then return saveSelected({ clearZone = true, zone = nil }) end
 
-    if actionId == 'vehicles:add' then
-        local model = values.model
-        if not model then
-            return refresh({
-                tone = 'destructive',
-                message = 'Vehicle is required.'
-            })
-        end
-        local vehicles = {}
-        for _, vehicle in ipairs(selected.vehicles or {}) do
-            if vehicle.model == model then
-                return refresh({
-                    tone = 'destructive',
-                    message = 'That vehicle is already added.'
-                })
-            end
-            vehicles[#vehicles + 1] = vehicle
-        end
-        vehicles[#vehicles + 1] = {
-            model = model,
-        }
-    
-        return saveSelected({ vehicles = vehicles })
-    end
-    if actionId == 'vehicles:price' then
-        local model = values.model
-        local price = tonumber(values.price)
-
-        if not model or not price then
-            return refresh({
-                tone = 'destructive',
-                message = 'Vehicle and price are required.'
-            })
-        end
-
-        local vehicles = {}
-
-        for _, vehicle in ipairs(selected.vehicles) do
-            if vehicle.model == model then
-                vehicles[#vehicles + 1] = {
-                    model = vehicle.model,
-                    name = vehicle.name,
-                    price = price,
-                }
-            else
-                vehicles[#vehicles + 1] = vehicle
-            end
-        end
-
-        return saveSelected({ vehicles = vehicles })
-    end
+    if actionId == 'vehicles:add' then return addVehicle(values.model) end
+    if actionId == 'vehicles:price' then return setVehiclePrice(values.model, tonumber(values.price)) end
     local removeModel = actionId:match('^vehicles:remove:(.+)$')
-    if removeModel then
-        local vehicles = {}
-        for _, model in ipairs(selected.vehicles) do
-            if model ~= removeModel then vehicles[#vehicles + 1] = model end
-        end
-        return saveSelected({ vehicles = vehicles })
-    end
+    if removeModel then return removeVehicle(removeModel) end
 
-    if actionId == 'placements:add' then
-        pendingTool = { kind = 'placement', model = values.model }
+    local tool, viewId = fn.aimToolFor(actionId, values)
+    if tool then
+        pendingTool, currentView = tool, viewId
         return { close = true }
     end
-    local removePlacement = actionId:match('^placements:remove:(%d+)$')
-    if removePlacement then
-        local placements = {}
-        for index, placement in ipairs(selected.placements) do
-            if tostring(index) ~= removePlacement then placements[#placements + 1] = placement end
-        end
-        return saveSelected({ placements = placements })
-    end
 
-    if actionId == 'spawns:add' then
-        pendingTool = { kind = 'spawn' }
-        return { close = true }
-    end
-    local removeSpawn = actionId:match('^spawns:remove:(%d+)$')
-    if removeSpawn then
-        local spawns = {}
-        for index, spawn in ipairs(selected.spawns) do
-            if tostring(index) ~= removeSpawn then spawns[#spawns + 1] = spawn end
-        end
-        return saveSelected({ spawns = spawns })
-    end
-
-    for _, spec in ipairs({ managementSpec, saleSpec }) do
-        if actionId == spec.id .. ':add' then
-            pendingTool = { kind = 'point', spec = spec }
-            currentView = spec.id
-            return { close = true }
-        end
-        local removeIndex = actionId:match('^' .. spec.id .. ':remove:(%d+)$')
-        if removeIndex then
-            local kept = {}
-            for index, entry in ipairs(selected[spec.field] or {}) do
-                if tostring(index) ~= removeIndex then kept[#kept + 1] = entry end
-            end
-            return saveSelected({ [spec.field] = kept })
-        end
-    end
+    local field, kept = fn.removeFromList(actionId, selected)
+    if field then return saveSelected({ [field] = kept }) end
 
     return refresh()
 end
@@ -504,7 +280,6 @@ QB.nui.registerApp({
     onAction = onAction,
 })
 
-
 local function runPendingTool()
     local tool = pendingTool
     pendingTool = nil
@@ -512,31 +287,8 @@ local function runPendingTool()
     if tool.kind == 'zone' then
         local result = QB.zones.startCreator('poly')
         if result then saveSelected({ zone = result.opts }) end
-    elseif tool.kind == 'spawn' then
-        local result = QB.raycast.getCoords({ type = 'object', object = 'asbo' })
-        if result then
-            local spawns = {}
-            for _, spawn in ipairs(selected.spawns) do spawns[#spawns + 1] = spawn end
-            spawns[#spawns + 1] = { coords = result.coords }
-            saveSelected({ spawns = spawns })
-        end
-    elseif tool.kind == 'point' then
-        local field = tool.spec.field
-        local result = getCoords()
-        if result then
-            local list = {}
-            for _, entry in ipairs(selected[field] or {}) do list[#list + 1] = entry end
-            list[#list + 1] = { coords = result.coords }
-            saveSelected({ [field] = list })
-        end
-    elseif tool.kind == 'placement' then
-        local result = QB.raycast.getCoords({ type = 'object', object = tool.model })
-        if result then
-            local placements = {}
-            for _, placement in ipairs(selected.placements) do placements[#placements + 1] = placement end
-            placements[#placements + 1] = { model = tool.model, coords = result.coords }
-            saveSelected({ placements = placements })
-        end
+    else
+        fn.runAimTool(tool, selected, saveSelected)
     end
 end
 

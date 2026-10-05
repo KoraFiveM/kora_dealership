@@ -56,11 +56,6 @@ Config.categories = { -- See this, dont touch this. like seriously, this is tied
     'Trains',
     'Open Wheel'
 }
-if not IsDuplicityVersion() then
-    Config.getCategory = function(model)
-        local class = GetVehicleClassFromName(model)
-        return Config.categories[class + 1] or 'Unknown'
-    end
-end
+
 
 if QB and QB.config and QB.config.adopt then Config = QB.config.adopt(Config) end

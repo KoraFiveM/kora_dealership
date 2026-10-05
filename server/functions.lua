@@ -5,7 +5,9 @@ local defaultSettings = { maxPriceOverride = 10, commission = 5, employeeDiscoun
 
 fn.defaultSettings = defaultSettings
 
--- --- basics -----------------------------------------------------------------------
+function fn.notify(src, message, class)
+    QB.notify.send(src, {title = 'QB Dealerships', message = message, type = class})
+end
 
 function fn.fail(message)
     return false, message
@@ -134,7 +136,6 @@ end
 
 function fn.deliverVehicle(src, model, spawn)
     local online = true
-    QB.print.debug(src, model, spawn, type(src), #src)
     local vehicle = fn.createVehicle(model, spawn.coords)
     if not vehicle then return nil end
 
@@ -256,7 +257,6 @@ function fn.recordSale(dealer, seller, sale)
             employees[i].income = (tonumber(employees[i].income) or 0) + price
         end
     end
-    QB.print.debug('Updated employees:', employees)
     local dealerShare = price - commission
     local updated = fn.updateManagement(dealer, {
         balance = data.balance + dealerShare,
@@ -266,7 +266,6 @@ function fn.recordSale(dealer, seller, sale)
     })
     if not updated then return false end
 
-    print(('[qbdealership] recorded sale at %s: $%d, commission $%d to %s'):format(dealer, price, commission, tostring(sellerCid)))
     if commission > 0 then exports.qbcore:addMoney(seller, 'bank', commission) end
     return true, commission
 end

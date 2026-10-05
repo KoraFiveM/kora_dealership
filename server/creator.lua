@@ -1,6 +1,3 @@
--- Admin-facing creator callbacks. All dealership logic (patching, validation, saving,
--- publishing) lives in server/functions.lua; this file only handles permissions and
--- argument checks, then delegates to fn.
 
 local function slug(value)
     value = type(value) == 'string' and value:lower():gsub('[^a-z0-9_-]', '-') or ''
@@ -85,11 +82,9 @@ QB.callback.register('qbdealership:save', function(src, id, patch)
     local allowed, err = adminOnly(src)
     if not allowed then return false, err end
     if type(id) ~= 'string' then return fn.fail('Unknown dealership.') end
-
     return fn.patchDealership(id, patch)
 end)
 
--- Players swap which model is shown on a display placement. Not admin-gated.
 local lastSwap = {}
 AddEventHandler('playerDropped', function() lastSwap[source] = nil end)
 
