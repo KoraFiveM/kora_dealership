@@ -18,7 +18,6 @@ local function can(permission)
     return portalOwner or grantedPermissions[permission] == true
 end
 
--- Spawns and zones are owner-only; display placements also belong to 'manageDisplay'.
 local function canEditList(field)
     return portalOwner or (field == 'placements' and grantedPermissions.manageDisplay == true)
 end
