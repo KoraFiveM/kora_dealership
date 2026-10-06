@@ -8,9 +8,10 @@ local vehicleCatalog = nil  -- { { value = model, label = name }, ... }, built o
 
 local function loadCatalog()
     if vehicleCatalog then return vehicleCatalog end
-    local shared = exports['qb-core']:GetShared('Vehicles') or {}
+    local shared = exports.qbcore:allShared('vehicles') or {}
     local list = {}
-    for model, data in pairs(shared) do
+    for _, data in ipairs(shared) do
+        local model = data.model
         list[#list + 1] = { value = model, label = (type(data) == 'table' and data.name) or model }
     end
     table.sort(list, function(a, b) return a.label < b.label end)
