@@ -29,15 +29,16 @@ function Client.canManage(dealer)
     return Client.admin or Client.isBoss(dealer)
 end
 
+local vehicleClassLabels = {
+    [0] = 'Compacts', [1] = 'Sedans', [2] = 'SUVs', [3] = 'Coupes', [4] = 'Muscle',
+    [5] = 'Sports Classics', [6] = 'Sports', [7] = 'Super', [8] = 'Motorcycles',
+    [9] = 'Off-Road', [10] = 'Industrial', [11] = 'Utility', [12] = 'Vans',
+    [13] = 'Cycles', [14] = 'Boats', [15] = 'Helicopters', [16] = 'Planes',
+    [17] = 'Service', [18] = 'Emergency', [19] = 'Military', [20] = 'Commercial', [21] = 'Trains',
+}
+
 function Client.category(model)
-    local labels = {
-        [0] = 'Compacts', [1] = 'Sedans', [2] = 'SUVs', [3] = 'Coupes', [4] = 'Muscle',
-        [5] = 'Sports Classics', [6] = 'Sports', [7] = 'Super', [8] = 'Motorcycles',
-        [9] = 'Off-Road', [10] = 'Industrial', [11] = 'Utility', [12] = 'Vans',
-        [13] = 'Cycles', [14] = 'Boats', [15] = 'Helicopters', [16] = 'Planes',
-        [17] = 'Service', [18] = 'Emergency', [19] = 'Military', [20] = 'Commercial', [21] = 'Trains',
-    }
-    return labels[GetVehicleClassFromName(joaat(model))] or 'Other'
+    return vehicleClassLabels[GetVehicleClassFromName(joaat(model))] or 'Other'
 end
 
 function Client.money(value)
