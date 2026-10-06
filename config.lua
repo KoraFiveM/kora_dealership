@@ -1,69 +1,81 @@
 Config = {}
 
-Config.debug = false
-Config.command = 'dealership'
+Config.command = 'dealershipcreator'
 Config.adminPermission = 'admin'
-Config.account = 'bank'
 Config.maxPrice = 5000000
-Config.platePrefix = 'DLR'
-Config.plateAttempts = 20
+Config.UsePDM = true -- auto loads a pdm set up fully
+Config.swapDistance = 6.0   -- server-checked max distance from the placement
+Config.swapCooldown = 1000  -- ms between swaps per player
+Config.maxPendingOffers = 5       -- open offers one player may have at once
+Config.offerVehicleState = 'garaged' -- player_vehicles.state for a car won through an accepted offer
+Config.autoConfirmCheckSeconds = 60 * 10  -- how often due offers are processed
 
--- Cash-only offers may complete without a manager after this many seconds.
--- Automatic purchases must meet the current dealership sale price; trade-ins
--- cannot exceed the shared base price or a lower dealership sale override.
--- Set enabled false globally, or autoAccept false on one dealership, to make
--- every offer require a human response. Offers containing terms are always
--- manual regardless of these settings.
-Config.AutoSellTime = 15 * 60
-Config.AutoAccept = {
-    enabled = true,
-    retrySeconds = 60,
+-- Limits on what a client may save or send
+Config.maxPlacements = 50
+Config.maxSpawns = 20
+Config.maxZones = 10                 -- management zones and sale zones, each
+Config.maxZonePoints = 32            -- points in a dealership polygon
+Config.maxBalance = 2000000000       -- dealership balance cap (column is int(11))
+
+-- Customer actions
+Config.testDriveDistance = 5.0
+Config.testDriveSeconds = 120        -- server-side cut-off for a test drive
+Config.testBucketBase = 100000
+Config.testSpawn = { x = -1574.22, y = -3008.77, z = 13.94, w = 227.21 }
+Config.spawnClearance = 3.0          -- a spawn point is blocked when a vehicle is this close
+Config.saleConfirmTimeout = 60       -- seconds before a seller's lock on an unanswered sale prompt expires
+Config.rateLimits = { testDrive = 3000, purchase = 2000, offer = 5000, funds = 1000 } -- ms
+
+Config.autoConfirmOffersDays = 14 -- Number of days after which offers are automatically confirmed
+Config.offersPageLimit = 50       -- most offers shown in each list (pending / active) on the management Offers page
+
+-- Owner management portal
+Config.managementDistance = 5.0      -- server-checked max distance from a management point
+Config.managementTargetRadius = 1.5  -- size of the target zone at each management point
+Config.maxEmployees = 20
+Config.orderPriceMultiplier = 0.7    -- wholesale price = listed price x this, per vehicle ordered
+Config.maxOrderQuantity = 10         -- vehicles per order
+Config.maxStock = 100                -- stock cap per vehicle for owned dealerships
+Config.employeePermissions = {
+    { value = 'sellVehicles', label = 'Sell vehicles' },
+    { value = 'handleOffers', label = 'Handle offers' },
+    { value = 'orderVehicles', label = 'Order vehicles' },
+    { value = 'manageDisplay', label = 'Manage display placements' },
 }
 
-Config.offerExpirySeconds = 7 * 24 * 60 * 60
-Config.testDriveSeconds = 90
-Config.WholesalePrice = 0.70
--- Official Cfx vehicle reference images. Set nil for icon-only cards, or point
--- this at a local/hosted `%s` model-name template for addon vehicles.
-Config.VehicleImageTemplate = 'https://docs-backend.fivem.net/vehicles/%s.webp'
-Config.vehicle = { fuel = 100, engineHealth = 1000, bodyHealth = 1000 }
-
--- First-boot seeds. Once migrated, dealerships are database-backed and edits
--- made in the creator/management AppShell are live without a restart.
-Config.dealerships = {
-    pdm = {
-        label = 'Premium Deluxe Motorsport',
-        job = nil, -- nil is an NPC-operated dealership
-        enabled = true,
-        autoAccept = true,
-        zone = {
-            coords = { x = -56.6, y = -1096.7, z = 26.4 },
-            size = { x = 12.0, y = 10.0, z = 4.0 },
-            rotation = 25.0,
-            distance = 3.0,
-            bucket = 0,
-        },
-        vehicles = { 'sultan', 'blista', 'kuruma' },
-        prices = {},
-        placements = {},
-        testDriveCoords = { x = -47.4, y = -1116.4, z = 26.4, w = 70.0 },
-        purchaseSpawnCoords = { x = -47.4, y = -1078.7, z = 26.7, w = 70.0 },
-    },
+-- Sales target (owner/employee-assisted vehicle sales)
+Config.saleDistance = 5.0            -- server-checked max distance from a sale point
+Config.saleTargetRadius = 1.5        -- size of the target zone at each sale point
+Config.nearbyCustomerDistance = 8.0  -- how close a customer must be to show up in the nearby list
+Config.paymentMethods = {
+    { value = 'cash', label = 'Cash' },
+    { value = 'card', label = 'Card' },
+}
+Config.categories = { -- See this, dont touch this. like seriously, this is tied to the vehicle class IDs
+    'Compacts',
+    'Sedans',
+    'SUVs',
+    'Coupes',
+    'Muscle',
+    'Sports Classics',
+    'Sports',
+    'Super',
+    'Motorcycles',
+    'Off-road',
+    'Industrial',
+    'Utility',
+    'Vans',
+    'Cycles',
+    'Boats',
+    'Helicopters',
+    'Planes',
+    'Service',
+    'Emergency',
+    'Military',
+    'Commercial',
+    'Trains',
+    'Open Wheel'
 }
 
-if QB and QB.config and QB.config.adopt then
-    Config.account = QB.config.enum(Config.account, {
-        label = 'Payment account',
-        description = 'Selects the player money account used for dealership purchases and trade-in payments. Cash uses carried money, while Bank uses the player’s bank balance for both sides of the transaction.',
-        options = {
-            { value = 'cash', label = 'Cash' },
-            { value = 'bank', label = 'Bank' },
-            { value = 'crypto', label = 'Crypto' },
-        },
-    })
-    Config.dealerships = QB.config.map(Config.dealerships, QB.config.object({}), {
-        label = 'First-boot dealership seeds',
-        description = 'Defines dealership records offered as first-boot database seeds. Each row key is the stable dealership ID and its JSON object supplies label, job policy, zone, vehicles, price overrides, display placements, and spawn coordinates. Existing database dealerships are not overwritten by changing these authored seeds.',
-    })
-    Config = QB.config.adopt(Config)
-end
+
+if QB and QB.config and QB.config.adopt then Config = QB.config.adopt(Config) end
