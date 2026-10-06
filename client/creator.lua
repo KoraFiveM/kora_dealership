@@ -8,7 +8,7 @@ local vehicleCatalog = nil  -- { { value = model, label = name }, ... }, built o
 
 local function loadCatalog()
     if vehicleCatalog then return vehicleCatalog end
-    local shared = exports.qbcore:getShared('vehicles') or {}
+    local shared = exports['qb-core']:GetShared('Vehicles') or {}
     local list = {}
     for model, data in pairs(shared) do
         list[#list + 1] = { value = model, label = (type(data) == 'table' and data.name) or model }
@@ -139,14 +139,7 @@ local function vehiclesView()
                     fields = { { id = 'model', label = QB.lang('c.creator.vehicles.form.veh'), type = 'select', options = loadCatalog(), required = true } },
                     action = { id = 'vehicles:add', label = QB.lang('c.creator.vehicles.form.add') },
                 },
-                {
-                    type = 'form', id = 'vehicle-price', title = QB.lang('c.creator.vehicles.form.priceHead'),
-                    fields = {
-                        { id = 'model', label = QB.lang('c.creator.vehicles.form.veh'), type = 'select', options = fn.vehicleOptions(selected.vehicles), required = true },
-                        { id = 'price', label = QB.lang('c.creator.vehicles.form.sale'), type = 'number', min = 1, max = Config.maxPrice, required = true },
-                    },
-                    action = { id = 'vehicles:price', label = QB.lang('c.creator.vehicles.form.save') },
-                },
+                
                 { type = 'list', id = 'vehicle-list', title = QB.lang('c.creator.vehicles.form.current', #items), layout = 'cards',  items = items, empty = QB.lang('c.creator.vehicles.form.empty') },
             },
         },

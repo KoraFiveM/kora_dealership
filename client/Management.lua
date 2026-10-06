@@ -278,7 +278,7 @@ local function buildNavigation()
         return {
             views.placements(record),
             views.spawns(record),
-            views.pointZones(views.managementSpec, record),
+            views.pointZones(views.managementSpec, record, true),
             views.pointZones(views.saleSpec, record),
             employeesView(),
             permissionsView(),

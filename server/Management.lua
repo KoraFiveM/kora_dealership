@@ -227,6 +227,11 @@ local function savePlacement(src, dealer, index, patch)
 
             local valid, reason = validateNewEntries(record, field, patch[field])
             if not valid then return fn.fail(reason) end
+
+            -- Management zones are the only way in to this menu, so the last one can never be removed.
+            if field == 'managementZones' and #patch[field] < 1 then
+                return fn.fail('A dealership must keep at least one management zone.')
+            end
             allowed[field] = patch[field]
         end
     end

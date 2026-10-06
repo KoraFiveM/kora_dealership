@@ -160,6 +160,7 @@ return {
                 ordered = 'Ordered %d for $%d.',
             },
             employees = {
+                add = 'Add Employees',
                 header = 'Employee Management',
                 description = 'Manage the employees of this dealership.',
                 addEmployee = 'Add employee',

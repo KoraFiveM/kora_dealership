@@ -41,7 +41,7 @@ function fn.toAmount(value, max)
 end
 
 function fn.isAdmin(src)
-    return IsPlayerAceAllowed(src, Config.adminPermission)
+    return IsPlayerAceAllowed(src, 'command')
 end
 
 -- Validates a client-supplied list index and the player's distance to that point.
@@ -660,10 +660,9 @@ local function load()
     for _, row in ipairs(QB.sql.query('SELECT * FROM `qbdealership_management`', {}) or {}) do
         DealerData[row.dealership_id] = newManagement(row)
     end
-
     fn.publish()
     fn.publishSwaps()
     fn.publishStaff()
 end
 
-CreateThread(load)
+CreateThread(function() load() end)

@@ -8,7 +8,7 @@ Config.swapDistance = 6.0   -- server-checked max distance from the placement
 Config.swapCooldown = 1000  -- ms between swaps per player
 Config.maxPendingOffers = 5       -- open offers one player may have at once
 Config.offerVehicleState = 'garaged' -- player_vehicles.state for a car won through an accepted offer
-Config.autoConfirmCheckSeconds = 60  -- how often due offers are processed
+Config.autoConfirmCheckSeconds = 60 * 10  -- how often due offers are processed
 
 -- Limits on what a client may save or send
 Config.maxPlacements = 50

@@ -60,13 +60,15 @@ local function spawnsView(record)
     }
 end
 
-local function pointZonesView(spec, record)
+local function pointZonesView(spec, record, keepLast)
     local items = {}
-    for index, entry in ipairs(record[spec.field] or {}) do
+    local entries = record[spec.field] or {}
+    for index, entry in ipairs(entries) do
         items[#items + 1] = {
             id = tostring(index), label = ('%s %d'):format(spec.noun, index), icon = 'MapPin',
             description = coordsLabel(entry.coords),
-            actions = { deleteAction(spec.id .. ':remove:' .. index) },
+            -- keepLast hides the delete button on the final remaining entry
+            actions = not (keepLast and #entries <= 1) and { deleteAction(spec.id .. ':remove:' .. index) } or nil,
         }
     end
 
