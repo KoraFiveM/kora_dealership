@@ -3,7 +3,7 @@ Config = {}
 Config.command = 'dealershipcreator'
 Config.adminPermission = 'admin'
 Config.maxPrice = 5000000
-
+Config.UsePDM = true -- auto loads a pdm set up fully
 Config.swapDistance = 6.0   -- server-checked max distance from the placement
 Config.swapCooldown = 1000  -- ms between swaps per player
 Config.maxPendingOffers = 5       -- open offers one player may have at once
