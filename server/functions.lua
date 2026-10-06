@@ -528,3 +528,16 @@ function fn.getFreeSpawn(spawns, radius)
     end
     return spawns[1]
 end
+
+function fn.getPlayerName(src)
+    if type(src) == 'number' then
+        local player = exports.qbcore:getPlayer(src)
+        return player and player.Charinfo.firstname .. ' ' .. player.Charinfo.lastname
+    elseif type(src) == 'string' and #src == 8 then
+        local data = QB.sql.query(
+            'SELECT CONCAT(JSON_UNQUOTE(JSON_EXTRACT(`charinfo`, "$.firstname")), " ", JSON_UNQUOTE(JSON_EXTRACT(`charinfo`, "$.lastname"))) AS `name` FROM `players` WHERE `citizenid` = ?',
+            { src }
+        )
+        return data and data[1] and data[1].name
+    end
+end

@@ -1,10 +1,10 @@
 
 local function deleteAction(id)
-    return { id = id, label = 'Delete', icon = 'Trash2', variant = 'destructive' }
+    return { id = id, label = QB.lang('s.delete'), icon = 'Trash2', variant = 'destructive' }
 end
 
 local function coordsLabel(coords)
-    return ('%.1f, %.1f, %.1f'):format(coords.x, coords.y, coords.z)
+    return QB.lang('s.coords'):format(coords.x, coords.y, coords.z)
 end
 
 local function placementsView(record)
@@ -14,6 +14,7 @@ local function placementsView(record)
             id = tostring(index), label = placement.model, icon = 'Car',
             description = coordsLabel(placement.coords),
             actions = { deleteAction('placements:remove:' .. index) },
+            image = fn.getVehicleImage(placement.model)
         }
     end
 
@@ -21,19 +22,19 @@ local function placementsView(record)
     local blocks = {}
     if #vehicleOptions > 0 then
         blocks[#blocks + 1] = {
-            type = 'form', id = 'place', title = 'Place display vehicle',
-            description = 'Pick a vehicle, then aim at where it should appear in the world.',
-            fields = { { id = 'model', label = 'Vehicle', type = 'select', options = vehicleOptions, required = true } },
-            action = { id = 'placements:add', label = 'Place display vehicle' },
+            type = 'form', id = 'place', title = QB.lang('c.creator.placement.form.place'),
+            description = QB.lang('c.creator.placement.form.description'),
+            fields = { { id = 'model', label = QB.lang('c.creator.placement.form.veh'), type = 'select', options = vehicleOptions, required = true } },
+            action = { id = 'placements:add', label = QB.lang('c.creator.placement.form.place') },
         }
     else
-        blocks[#blocks + 1] = { type = 'empty', title = 'Add a vehicle on the Vehicles tab first.' }
+        blocks[#blocks + 1] = { type = 'empty', title = QB.lang('c.creator.placement.empty') }
     end
-    blocks[#blocks + 1] = { type = 'list', id = 'placement-list', title = 'Current placements', items = items, empty = 'No vehicles placed yet.' }
+    blocks[#blocks + 1] = { type = 'list', id = 'placement-list', layout = 'cards', title = QB.lang('c.creator.placement.listTitle'), items = items, empty = QB.lang('c.creator.placement.emptyList') }
 
     return {
-        id = 'placements', label = 'Placements', icon = 'MapPin',
-        content = { title = 'Display placements', description = 'Showroom vehicles customers see but can\'t take.', blocks = blocks },
+        id = 'placements', label = QB.lang('c.creator.placement.header'), icon = 'MapPin',
+        content = { title = QB.lang('c.creator.placement.header'), description = QB.lang('c.creator.placement.description'), blocks = blocks },
     }
 end
 
@@ -48,12 +49,12 @@ local function spawnsView(record)
     end
 
     return {
-        id = 'spawns', label = 'Spawns', icon = 'MapPin',
+        id = 'spawns', label = QB.lang('c.creator.spawns.header'), icon = 'MapPin',
         content = {
-            title = 'Vehicle spawn points', description = 'Where a purchased/display vehicle is actually created. Add as many as you like.',
+            title = QB.lang('c.creator.spawns.header'), description = QB.lang('c.creator.spawns.description'),
             blocks = {
-                { type = 'actions', actions = { { id = 'spawns:add', label = 'Add spawn point', variant = 'primary' } } },
-                { type = 'list', id = 'spawn-list', title = 'Current spawn points', items = items, empty = 'No spawn points yet.' },
+                { type = 'actions', actions = { { id = 'spawns:add', label = QB.lang('c.creator.spawns.form.add'), variant = 'primary' } } },
+                { type = 'list', id = 'spawn-list', layout = 'cards', title = QB.lang('c.creator.spawns.listTitle'), items = items, empty = QB.lang('c.creator.spawns.empty') },
             },
         },
     }
@@ -75,22 +76,22 @@ local function pointZonesView(spec, record)
             title = spec.title, description = spec.description,
             blocks = {
                 { type = 'actions', actions = { { id = spec.id .. ':add', label = spec.addLabel, variant = 'primary' } } },
-                { type = 'list', id = spec.id .. '-list', title = spec.listTitle, items = items, empty = spec.empty },
+                { type = 'list',layout = 'cards', id = spec.id .. '-list', title = spec.listTitle, items = items, empty = spec.empty },
             },
         },
     }
 end
 
 local managementSpec = {
-    id = 'management', field = 'managementZones', noun = 'Management zone', label = 'Management', icon = 'Briefcase',
-    title = 'Management zones', description = 'Where the dealership owner and staff manage the business. Add as many as you like.',
-    addLabel = 'Add management zone', listTitle = 'Current management zones', empty = 'No management zones yet.',
+    id = 'management', field = 'managementZones', noun = QB.lang('c.creator.management.header'), label = QB.lang('c.creator.management.header'), icon = 'Briefcase',
+    title = QB.lang('c.creator.management.header'), description = QB.lang('c.creator.management.description'),
+    addLabel = QB.lang('c.creator.management.addLabel'), listTitle = QB.lang('c.creator.management.listTitle'), empty = QB.lang('c.creator.management.empty'),
 }
 
 local saleSpec = {
-    id = 'sales', field = 'saleZones', noun = 'Sale zone', label = 'Sales', icon = 'Tag',
-    title = 'Sale zones', description = 'Where vehicles are sold to customers. Add as many as you like.',
-    addLabel = 'Add sale zone', listTitle = 'Current sale zones', empty = 'No sale zones yet.',
+    id = 'sales', field = 'saleZones', noun = QB.lang('c.creator.sales.header'), label = QB.lang('c.creator.sales.header'), icon = 'Tag',
+    title = QB.lang('c.creator.sales.header'), description = QB.lang('c.creator.sales.description'),
+    addLabel = QB.lang('c.creator.sales.addLabel'), listTitle = QB.lang('c.creator.sales.listTitle'), empty = QB.lang('c.creator.sales.empty'),
 }
 
 DealershipViews = {

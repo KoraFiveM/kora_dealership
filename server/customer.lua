@@ -65,12 +65,14 @@ end)
 QB.callback.register('qbdealership:confirmPurchase', function(src, dealer, index, model)
     assert(QB.distance.player(src, Dealerships[dealer].placements[index].coords, testDriveDistance), 'You are too far from the vehicle.')
     assert(fn.findVehicle(Dealerships[dealer], model), 'That vehicle is not sold here.')
-    if not fn.inStock(record, entry) then return fn.notify(src, 'That vehicle is out of stock.', 'error') end
+    local vehData = fn.findVehicle(Dealerships[dealer], model)
+    if not vehData then return fn.notify(src, 'That vehicle is not sold here.', 'error') end
+    if not vehData.stock or vehData.stock <= 0 then return fn.notify(src, 'That vehicle is out of stock.', 'error') end
 
-    local spawn = fn.getFreeSpawn(record.spawns)
+    local spawn = fn.getFreeSpawn(Dealerships[dealer].spawns)
     if not spawn then return fn.notify(src, 'This dealership has no spawn point.', 'error') end
 
-    local price = entry.price
+    local price = vehData.price
     if not exports.qbcore:removeMoney(src, 'bank', price) then
         return fn.notify(src, 'Not enough money in your bank account.', 'error')
     end
@@ -84,6 +86,7 @@ QB.callback.register('qbdealership:confirmPurchase', function(src, dealer, index
     end
 
     fn.creditSale(dealer, price)
+    fn.notify(src, 'Purchase successful!', 'success')
     return netId
 end)
 

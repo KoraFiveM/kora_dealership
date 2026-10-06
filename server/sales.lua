@@ -1,16 +1,16 @@
 
 local busy = {}
 
-local function authorizeSale(src, dealer)
+local function authorizeSale(src, dealer, index)
     local record = Dealerships[dealer]
     if not record or record.type ~= 'owned' then return nil, 'This dealership is not owned.' end
     if not fn.canEmployeeDo(src, dealer, 'sellVehicles') then return nil, 'You are not permitted to sell vehicles here.' end
-    if not fn.nearAny(src, record.saleZones, Config.saleDistance) then return nil, 'You are too far from a sale point.' end
+    if not QB.distance.player(src, record.saleZones[index].coords, Config.saleDistance) then return nil, 'You are too far from a sale point.' end
     return record
 end
 
-QB.callback.register('qbdealership:sales:open', function(src, dealer)
-    local record, err = authorizeSale(src, dealer)
+QB.callback.register('qbdealership:sales:open', function(src, dealer, index)
+    local record, err = authorizeSale(src, dealer, index)
     if not record then return fn.fail(err) end
 
     local sellerCoords = GetEntityCoords(GetPlayerPed(src))
@@ -32,11 +32,11 @@ QB.callback.register('qbdealership:sales:open', function(src, dealer)
 end)
 
 
-local function sell(src, dealer, customerSource, model, price)
-    local record, err = authorizeSale(src, dealer)
+local function sell(src, dealer, index, customerSource, model, price)
+    local record, err = authorizeSale(src, dealer, index)
     if not record then return fn.fail(err) end
 
-    local customer = math.tointeger(tonumber(customerSource))
+    local customer = tonumber(customerSource)
     if not customer or GetPlayerPed(customer) == 0 then return fn.fail('That customer is not available.') end
 
     model = type(model) == 'string' and model:lower()
@@ -48,10 +48,11 @@ local function sell(src, dealer, customerSource, model, price)
     if not spawn then return fn.fail('This dealership has no spawn point.') end
 
     local minPrice, maxPrice = DealershipOrders.priceBounds(entry.price, fn.management(dealer).settings.maxPriceOverride)
-    local finalPrice = math.tointeger(math.floor(tonumber(price) or -1))
+    local finalPrice = math.floor(tonumber(price) or -1)
     if not finalPrice or finalPrice < minPrice or finalPrice > maxPrice then
         return fn.fail(('Price must be between $%d and $%d.'):format(minPrice, maxPrice))
     end
+
 
     local answer = QB.callback.trigger(customer, 'qbdealership:sales:confirmPurchase', {
         seller = fn.playerName(src),
@@ -86,6 +87,7 @@ local function sell(src, dealer, customerSource, model, price)
         customer = fn.citizenId(customer),
         customerName = fn.playerName(customer),
     })
+
     if not recorded then
         print(('[qbdealership] failed to record sale of %s at %s for $%d'):format(model, dealer, finalPrice))
     end

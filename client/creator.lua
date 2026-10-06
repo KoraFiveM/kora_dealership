@@ -25,25 +25,25 @@ local function dealershipsView()
         items[#items + 1] = {
             id = entry.id,
             label = entry.label,
-            description = entry.type == 'for_sale' and ('For sale · $%d'):format(entry.price or 0)
-                or entry.type == 'owned' and ('Owned · %s'):format(entry.owner or 'unclaimed')
-                or 'Public',
+            description = entry.type == 'for_sale' and QB.lang('c.creator.for_sale', entry.price or 0)
+                or entry.type == 'owned' and QB.lang('c.creator.owned', entry.owner or 'unclaimed')
+                or QB.lang('c.creator.public'),
             icon = 'Warehouse',
             action = 'select:' .. entry.id,
         }
     end
 
     return {
-        id = 'dealerships', label = 'Dealerships', icon = 'Warehouse',
+        id = 'dealerships', label = QB.lang('c.creator.dealerLabel'), icon = 'Warehouse',
         content = {
-            title = 'Dealerships',
-            description = 'Pick one to edit, or create a new one.',
+            title = QB.lang('c.creator.dealerLabel'),
+            description = QB.lang('c.creator.dealerDesc'),
             blocks = {
                 { type = 'list', id = 'dealership-list', items = items, empty = 'No dealerships yet.' },
                 {
-                    type = 'form', id = 'create', title = 'Create dealership',
-                    fields = { { id = 'label', label = 'Name', type = 'text', required = true } },
-                    action = { id = 'create', label = 'Create' },
+                    type = 'form', id = 'create', title = QB.lang('c.creator.createDealership'),
+                    fields = { { id = 'label', label = QB.lang('c.creator.dealerName'), type = 'text', required = true } },
+                    action = { id = 'create', label = QB.lang('c.creator.create') },
                 },
             },
         },
@@ -52,37 +52,37 @@ end
 
 local function dataView()
     return {
-        id = 'data', label = 'Data', icon = 'Settings',
+        id = 'data', label = QB.lang('c.creator.data.header'), icon = 'Settings',
         content = {
-            title = selected.label, description = 'Public, for sale at a set price, or owned by a player.',
+            title = selected.label, description = QB.lang('c.creator.data.description'),
             blocks = {
                 {
-                    type = 'form', id = 'data', title = 'Dealership data',
+                    type = 'form', id = 'data', title = QB.lang('c.creator.data.header'),
                     fields = {
-                        { id = 'label', label = 'Name', type = 'text', default = selected.label, required = true },
+                        { id = 'label', label = QB.lang('c.creator.data.form.name'), type = 'text', default = selected.label, required = true },
                         {
-                            id = 'type', label = 'Access', type = 'select', default = selected.type,
+                            id = 'type', label = QB.lang('c.creator.data.form.access'), type = 'select', default = selected.type,
                             options = {
-                                { value = 'public', label = 'Public' },
-                                { value = 'for_sale', label = 'For sale' },
-                                { value = 'owned', label = 'Owned' },
+                                { value = 'public', label = QB.lang('c.creator.data.form.public') },
+                                { value = 'for_sale', label = QB.lang('c.creator.data.form.for_sale') },
+                                { value = 'owned', label = QB.lang('c.creator.data.form.owned') },
                             },
                         },
                         {
-                            id = 'price', label = 'Price (if for sale)', type = 'number',
+                            id = 'price', label = QB.lang('c.creator.data.form.price'), type = 'number',
                             default = selected.price and tonumber(selected.price) or 1,
                         },
                         {
-                            id = 'owner', label = 'Owner citizenid (if owned)', type = 'text',
+                            id = 'owner', label = QB.lang('c.creator.data.form.owner'), type = 'text',
                             default = selected.owner or '',
-                            description = 'Only kept while Access is set to Owned -- cleared otherwise.',
+                            description = QB.lang('c.creator.data.form.ownerDesc'),
                         },
                     },
-                    action = { id = 'data:save', label = 'Save' },
+                    action = { id = 'data:save', label = QB.lang('c.creator.data.form.save') },
                 },
                 {
-                    type = 'actions', title = 'Danger zone',
-                    actions = { { id = 'delete', label = 'Delete dealership', variant = 'destructive' } },
+                    type = 'actions', title = QB.lang('c.creator.data.delete.danger'),
+                    actions = { { id = 'delete', label = QB.lang('c.creator.data.delete.delete'), variant = 'destructive' } },
                 },
             },
         },
@@ -92,22 +92,22 @@ end
 local function zoneView()
     local zone = selected.zone
     return {
-        id = 'zone', label = 'Zone', icon = 'MapPin',
+        id = 'zone', label = QB.lang('c.creator.zone.header'), icon = 'MapPin',
         content = {
-            title = 'Dealership zone', description = 'The polygon customers must be inside to use this dealership.',
+            title = QB.lang('c.creator.zone.header'), description = QB.lang('c.creator.zone.description'),
             blocks = {
                 {
                     type = 'stats',
                     items = {
-                        { label = 'Points', value = zone and #zone.points or 0, icon = 'MapPin' },
-                        { label = 'Thickness', value = zone and ('%.1fm'):format(zone.thickness) or '—', icon = 'Ruler' },
+                        { label = QB.lang('c.creator.zone.stats.points'), value = zone and #zone.points or 0, icon = 'MapPin' },
+                        { label = QB.lang('c.creator.zone.stats.thickness'), value = zone and ('%.1fm'):format(zone.thickness) or '—', icon = 'Ruler' },
                     },
                 },
                 {
-                    type = 'actions', title = 'Draw zone',
+                    type = 'actions', title = QB.lang('c.creator.zone.actions.draw'),
                     actions = {
-                        { id = 'zone:create', label = zone and 'Redraw zone' or 'Draw zone', variant = 'primary' },
-                        { id = 'zone:clear', label = 'Clear zone', variant = 'outline', disabled = zone == nil },
+                        { id = 'zone:create', label = zone and QB.lang('c.creator.zone.actions.redraw') or QB.lang('c.creator.zone.actions.draw'), variant = 'primary' },
+                        { id = 'zone:clear', label = QB.lang('c.creator.zone.actions.clear'), variant = 'outline', disabled = zone == nil },
                     },
                 },
             },
@@ -121,32 +121,33 @@ local function vehiclesView()
         items[#items + 1] = {
             id = vehicle.model,
             label = fn.vehicleName(vehicle),
-            description = ('$%d'):format(tonumber(vehicle.price) or 1),
+            description = QB.lang('s.price', tonumber(vehicle.price) or 1),
             icon = 'Car',
             action = 'vehicles:edit:' .. vehicle.model,
+            image = fn.getVehicleImage(vehicle.model),
         }
     end
 
     return {
-        id = 'vehicles', label = 'Vehicles', icon = 'Car',
+        id = 'vehicles', label = QB.lang('c.creator.vehicles.header'), icon = 'Car',
         content = {
-            title = 'Dealership vehicles',
-            description = 'Vehicles this dealership can display, place, and sell.',
+            title = QB.lang('c.creator.vehicles.header'),
+            description = QB.lang('c.creator.vehicles.description'),
             blocks = {
                 {
-                    type = 'form', id = 'vehicle-add', title = 'Add vehicle',
-                    fields = { { id = 'model', label = 'Vehicle', type = 'select', options = loadCatalog(), required = true } },
-                    action = { id = 'vehicles:add', label = 'Add Vehicle' },
+                    type = 'form', id = 'vehicle-add', title = QB.lang('c.creator.vehicles.form.add'),
+                    fields = { { id = 'model', label = QB.lang('c.creator.vehicles.form.veh'), type = 'select', options = loadCatalog(), required = true } },
+                    action = { id = 'vehicles:add', label = QB.lang('c.creator.vehicles.form.add') },
                 },
                 {
-                    type = 'form', id = 'vehicle-price', title = 'Vehicle price',
+                    type = 'form', id = 'vehicle-price', title = QB.lang('c.creator.vehicles.form.priceHead'),
                     fields = {
-                        { id = 'model', label = 'Vehicle', type = 'select', options = fn.vehicleOptions(selected.vehicles), required = true },
-                        { id = 'price', label = 'Sale Price', type = 'number', min = 1, max = Config.maxPrice, required = true },
+                        { id = 'model', label = QB.lang('c.creator.vehicles.form.veh'), type = 'select', options = fn.vehicleOptions(selected.vehicles), required = true },
+                        { id = 'price', label = QB.lang('c.creator.vehicles.form.sale'), type = 'number', min = 1, max = Config.maxPrice, required = true },
                     },
-                    action = { id = 'vehicles:price', label = 'Save Price' },
+                    action = { id = 'vehicles:price', label = QB.lang('c.creator.vehicles.form.save') },
                 },
-                { type = 'list', id = 'vehicle-list', title = 'Current vehicles', items = items, empty = 'No vehicles added yet.' },
+                { type = 'list', id = 'vehicle-list', title = QB.lang('c.creator.vehicles.form.current', #items), layout = 'cards',  items = items, empty = QB.lang('c.creator.vehicles.form.empty') },
             },
         },
     }
@@ -171,46 +172,46 @@ local refresh, fail = fn.appRefresher(APP_ID, buildNavigation)
 
 local function saveSelected(patch)
     local result, err = QB.callback.trigger('qbdealership:save', selected.id, patch)
-    if not result then return fail(err or 'Save failed.') end
+    if not result then return fail(err or QB.lang('c.creator.failed')) end
     selected = result
     return refresh(fn.notice('Saved.'))
 end
 
 local function createDealership(label)
     local record, err = QB.callback.trigger('qbdealership:create', label)
-    if not record then return fail(err or 'Could not create dealership.') end
+    if not record then return fail(err or QB.lang('c.creator.failed')) end
     selected, currentView = record, 'data'
-    return refresh(fn.notice('Dealership created.'))
+    return refresh(fn.notice(QB.lang('c.creator.save')))
 end
 
 local function selectDealership(id)
     local record, err = QB.callback.trigger('qbdealership:get', id)
-    if not record then return fail(err or 'Could not open dealership.') end
+    if not record then return fail(err or QB.lang('c.creator.failed')) end
     selected, currentView = record, 'data'
     return refresh()
 end
 
 local function deleteSelected()
     local confirmation = QB.nui.openAlert({
-        title = 'Delete dealership', message = ('Delete "%s"? This cannot be undone.'):format(selected.label),
-        confirmLabel = 'Delete',
+        title = QB.lang('c.creator.delete.title'), message = QB.lang('c.creator.delete.message'),
+        confirmLabel = QB.lang('c.creator.delete.confirm'),
     })
     if not confirmation or not confirmation.confirmed then return refresh() end
 
     local ok, err = QB.callback.trigger('qbdealership:delete', selected.id)
-    if not ok then return fail(err or 'Delete failed.') end
+    if not ok then return fail(err or QB.lang('c.creator.delete.fail')) end
     selected, currentView = nil, 'dealerships'
-    return refresh(fn.notice('Dealership deleted.'))
+    return refresh(fn.notice(QB.lang('c.creator.delete.pass')))
 end
 
 local function addVehicle(model)
-    if not model then return fail('Vehicle is required.') end
-    if fn.findVehicle(selected.vehicles, model) then return fail('That vehicle is already added.') end
+    if not model then return fail(QB.lang('c.creator.vehicles.add.vehReq')) end
+    if fn.findVehicle(selected.vehicles, model) then return fail(QB.lang('c.creator.vehicles.add.vehExists')) end
     return saveSelected({ vehicles = fn.appended(selected.vehicles, { model = model }) })
 end
 
 local function setVehiclePrice(model, price)
-    if not model or not price then return fail('Vehicle and price are required.') end
+    if not model or not price then return fail(QB.lang('c.creator.vehicles.price.vehPrice')) end
 
     local vehicles = {}
     for _, vehicle in ipairs(selected.vehicles) do

@@ -36,4 +36,4 @@ client_scripts {
     'client/Management.lua',
 }
 
-files { 'sql/dealers.sql' }
+files { 'sql/dealers.sql', 'locales/en.lua' }

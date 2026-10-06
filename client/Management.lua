@@ -29,30 +29,31 @@ local function ordersView()
         local name = fn.vehicleName(vehicle)
         items[#items + 1] = {
             id = vehicle.model, label = name, icon = 'Car',
-            description = ('In stock: %d  ·  $%d each wholesale'):format(fn.toInt(vehicle.stock), unitCost),
+            description = QB.lang('c.management.orders.stockDesc', vehicle.stock, unitCost),
+            image = fn.getVehicleImage(vehicle.model),
         }
-        options[#options + 1] = { value = vehicle.model, label = ('%s  ·  $%d each'):format(name, unitCost) }
+        options[#options + 1] = { value = vehicle.model, label = QB.lang('c.management.orders.vehData', name, unitCost) }
     end
 
     local blocks = {}
     if #options > 0 then
         blocks[#blocks + 1] = {
-            type = 'form', id = 'order', title = 'Order vehicles',
-            description = ('Paid from the dealership\'s funds (balance: $%d). Up to %d per order, %d in stock per vehicle.'):format(funds.balance or 0, Config.maxOrderQuantity, Config.maxStock),
+            type = 'form', id = 'order', title = QB.lang('c.management.orders.title'),
+            description = QB.lang('c.management.orders.formDesc', funds.balance or 0, Config.maxOrderQuantity, Config.maxStock),
             fields = {
-                { id = 'model', label = 'Vehicle', type = 'select', options = options, required = true },
-                { id = 'quantity', label = 'Quantity', type = 'number', min = 1, max = Config.maxOrderQuantity, default = 1, required = true },
+                { id = 'model',     label = QB.lang('c.management.orders.vehLabel'),      type = 'select',  options = options, required = true },
+                { id = 'quantity',  label = QB.lang('c.management.orders.quantityLabel'), type = 'number', min = 1, max = Config.maxOrderQuantity, default = 1, required = true },
             },
-            action = { id = 'orders:place', label = 'Place order', confirm = 'Place this order? The cost is taken from the dealership\'s funds.' },
+            action = { id = 'orders:place', label = QB.lang('c.management.orders.placeOrder'), confirm = QB.lang('c.management.orders.confirmOrder', funds.balance or 0) },
         }
     else
-        blocks[#blocks + 1] = { type = 'empty', title = 'This dealership has no vehicles to order. Ask an admin to add some.' }
+        blocks[#blocks + 1] = { type = 'empty', title = QB.lang('c.management.orders.noVehs') }
     end
-    blocks[#blocks + 1] = { type = 'list', id = 'order-list', title = 'Your vehicles', items = items, empty = 'No vehicles yet.' }
+    blocks[#blocks + 1] = { type = 'list', layout = 'cards', id = 'order-list', title = QB.lang('c.management.orders.title'), items = items, empty = QB.lang('c.management.orders.noVehs') }
 
     return {
-        id = 'orders', label = 'Order vehicles', icon = 'Truck',
-        content = { title = 'Order vehicles', description = 'Restock vehicles from this dealership\'s vehicle list.', blocks = blocks },
+        id = 'orders', label = QB.lang('c.management.orders.title'), icon = 'Truck',
+        content = { title = QB.lang('c.management.orders.title'), description = QB.lang('c.management.orders.description'), blocks = blocks },
     }
 end
 
@@ -64,25 +65,25 @@ local function employeesView()
             description = ('%s  |  sales: %d  |  income: $%d'):format(
                 employee.citizenid, fn.toInt(employee.sales), fn.toInt(employee.income)),
             actions = {
-                { id = 'employees:remove:' .. employee.citizenid, label = 'Remove', icon = 'UserMinus', variant = 'destructive',
-                    confirm = ('Remove %s from this dealership?'):format(employee.name) },
+                { id = 'employees:remove:' .. employee.citizenid, label = QB.lang('c.management.employees.fire'), icon = 'UserMinus', variant = 'destructive',
+                    confirm = QB.lang('c.management.employees.fireConfirm') },
             },
         }
     end
 
     return {
-        id = 'employees', label = 'Employees', icon = 'Users',
+        id = 'employees', label = QB.lang('c.management.employees.header'), icon = 'Users',
         content = {
-            title = 'Employees', description = 'People who work for this dealership.',
+            title = QB.lang('c.management.employees.header'), description = QB.lang('c.management.employees.description'),
             blocks = {
                 {
-                    type = 'form', id = 'employee-add', title = 'Add employee',
+                    type = 'form', id = 'employee-add', title = QB.lang('c.management.employees.add'),
                     fields = { { id = 'serverId', label = 'Server ID', type = 'number', min = 1, required = true,
-                        description = 'The server ID of the online player to hire.' } },
-                    action = { id = 'employees:add', label = 'Add employee' },
+                        description = QB.lang('c.management.employees.addDesc') } },
+                    action = { id = 'employees:add', label = QB.lang('c.management.employees.addEmployee') },
                 },
-                { type = 'list', id = 'employee-list', layout = 'cards', title = ('Current employees (%d)'):format(#items),
-                    items = items, empty = 'No employees yet.' },
+                { type = 'list', id = 'employee-list', layout = 'cards', title = QB.lang('c.management.employees.current',#items),
+                    items = items, empty = QB.lang('c.management.employees.empty') },
             },
         },
     }
@@ -106,18 +107,18 @@ local function permissionsView()
 
         items[#items + 1] = {
             id = employee.citizenid, label = employee.name, icon = 'ShieldCheck',
-            description = ('%s  |  %d of %d allowed'):format(employee.citizenid, count, #Config.employeePermissions),
+            description = QB.lang('c.management.permissions.allowed', employee.citizenid, count, #Config.employeePermissions),
             actions = actions,
         }
     end
 
     return {
-        id = 'permissions', label = 'Employee permissions', icon = 'ShieldCheck',
+        id = 'permissions', label = QB.lang('c.management.permissions.header'), icon = 'ShieldCheck',
         content = {
-            title = 'Employee permissions', description = 'Click a permission to turn it on or off for that employee.',
+            title = QB.lang('c.management.permissions.header'), description = QB.lang('c.management.permissions.description'),
             blocks = {
                 { type = 'list', id = 'permission-list', layout = 'cards', items = items,
-                    empty = 'Add an employee on the Employees page first.' },
+                    empty = QB.lang('c.management.permissions.empty') },
             },
         },
     }
@@ -125,35 +126,35 @@ end
 
 local function fundsView()
     return {
-        id = 'funds', label = 'Funds', icon = 'Wallet',
+        id = 'funds', label = QB.lang('c.management.funds.header'), icon = 'Wallet',
         content = {
-            title = 'Dealership funds', description = 'Vehicle orders are paid from these funds, and vehicle sales pay into them.',
+            title = QB.lang('c.management.funds.header'), description = QB.lang('c.management.funds.description'),
             blocks = {
                 {
                     type = 'stats',
                     items = {
-                        { label = 'Current balance', value = ('$%d'):format(funds.balance or 0), icon = 'Wallet', tone = 'success' },
-                        { label = 'Total income', value = ('$%d'):format(funds.income or 0), icon = 'TrendingUp', tone = 'success' },
-                        { label = 'Total spent', value = ('$%d'):format(funds.spent or 0), icon = 'TrendingDown', tone = 'warning' },
+                        { label = QB.lang('c.management.funds.currentBalance'), value = ('$%d'):format(funds.balance or 0), icon = 'Wallet', tone = 'success' },
+                        { label = QB.lang('c.management.funds.totalIncome'), value = ('$%d'):format(funds.income or 0), icon = 'TrendingUp', tone = 'success' },
+                        { label = QB.lang('c.management.funds.totalSpent'), value = ('$%d'):format(funds.spent or 0), icon = 'TrendingDown', tone = 'warning' },
                     },
                 },
                 {
                     type = 'list', id = 'funds-actions', layout = 'cards',
                     items = {
                         {
-                            id = 'deposit', label = 'Deposit funds', icon = 'ArrowDownToLine', tone = 'success',
-                            description = 'Move money from your own bank account into the dealership\'s funds.',
+                            label = QB.lang('c.management.funds.deposit'), icon = 'ArrowDownToLine', tone = 'success', id = 'deposit',
+                            description = QB.lang('c.management.funds.depositDesc'),
                             actions = {
-                                { id = 'funds:deposit', label = 'Deposit', icon = 'ArrowDownToLine', variant = 'primary',
-                                    fields = { { id = 'amount', label = 'Amount', type = 'number', min = 1, required = true } } },
+                                { id = 'funds:deposit', label = QB.lang('c.management.funds.deposit'), icon = 'ArrowDownToLine', variant = 'primary',
+                                    fields = { { id = 'amount', label = QB.lang('c.management.funds.amount'), type = 'number', min = 1, required = true } } },
                             },
                         },
                         {
-                            id = 'withdraw', label = 'Withdraw funds', icon = 'ArrowUpFromLine', tone = 'warning',
-                            description = 'Move money from the dealership\'s funds into your own bank account.',
+                            id = 'withdraw', label = QB.lang('c.management.funds.withdraw'), icon = 'ArrowUpFromLine', tone = 'warning',
+                            description = QB.lang('c.management.funds.withdrawDesc'),
                             actions = {
-                                { id = 'funds:withdraw', label = 'Withdraw', icon = 'ArrowUpFromLine', variant = 'outline',
-                                    fields = { { id = 'amount', label = 'Amount', type = 'number', min = 1, required = true } } },
+                                { id = 'funds:withdraw', label = QB.lang('c.management.funds.withdraw'), icon = 'ArrowUpFromLine', variant = 'outline',
+                                    fields = { { id = 'amount', label = QB.lang('c.management.funds.amount'), type = 'number', min = 1, required = true } } },
                             },
                         },
                     },
@@ -165,24 +166,24 @@ end
 
 local function settingsView()
     return {
-        id = 'settings', label = 'Settings', icon = 'Settings',
+        id = 'settings', label = QB.lang('c.management.settings.header'), icon = 'Settings',
         content = {
-            title = 'Settings', description = 'Dealership business settings.',
+            title = QB.lang('c.management.settings.header'), description = QB.lang('c.management.settings.description'),
             blocks = {
                 {
-                    type = 'form', id = 'settings', title = 'Business settings',
+                    type = 'form', id = 'settings', title = QB.lang('c.management.settings.header'),
                     fields = {
-                        { id = 'maxPriceOverride', label = 'Max price override (%)', type = 'number', min = 0, max = 100,
+                        { id = 'maxPriceOverride', label = QB.lang('c.management.settings.maxPriceOverride'), type = 'number', min = 0, max = 100,
                             default = settings.maxPriceOverride or 10, required = true,
-                            description = 'How far, in percent, staff may adjust a vehicle\'s price.' },
-                        { id = 'commission', label = 'Commission (%)', type = 'number', min = 0, max = 100,
+                            description = QB.lang('c.management.settings.maxPriceOverrideDescription') },
+                        { id = 'commission', label = QB.lang('c.management.settings.commission'), type = 'number', min = 0, max = 100,
                             default = settings.commission or 5, required = true,
-                            description = 'Share of a sale paid to the employee who made it.' },
-                        { id = 'employeeDiscount', label = 'Employee discount (%)', type = 'number', min = 0, max = 100,
+                            description = QB.lang('c.management.settings.commissionDescription') },
+                        { id = 'employeeDiscount', label = QB.lang('c.management.settings.employeeDiscount'), type = 'number', min = 0, max = 100,
                             default = settings.employeeDiscount or 5, required = true,
-                            description = 'Discount employees get when buying from this dealership.' },
+                            description = QB.lang('c.management.settings.employeeDiscountDescription') },
                     },
-                    action = { id = 'settings:save', label = 'Save settings' },
+                    action = { id = 'settings:save', label = QB.lang('c.management.settings.save') },
                 },
             },
         },
@@ -226,9 +227,9 @@ local function offerItem(offer, kind)
             icon = 'DollarSign',
             actions = {
                 { id = 'offers:accept:' .. offer.id, label = 'Accept', variant = 'primary',
-                    confirm = ('Accept the $%d offer on the %s?'):format(price, name) },
+                    confirm = QB.lang('c.management.offers.acceptConfirm', price, name) },
                 { id = 'offers:deny:' .. offer.id, label = 'Deny', variant = 'destructive',
-                    confirm = ('Deny the $%d offer on the %s?'):format(price, name) },
+                    confirm = QB.lang('c.management.offers.denyConfirm', price, name),}
             },
         }
     end
@@ -254,15 +255,15 @@ local function offersView()
     local historyItems = offerItems(offers.history, 'history')
 
     return {
-        id = 'offers', label = 'Offers', icon = 'DollarSign',
+        id = 'offers', label = QB.lang('c.management.offers.header'), icon = 'DollarSign',
         content = {
-            title = 'Offers', description = 'Offers customers have made on this dealership\'s vehicles.',
+            title = QB.lang('c.management.offers.header'), description = QB.lang('c.management.offers.description'),
             blocks = {
-                { type = 'actions', actions = { { id = 'offers:refresh', label = 'Refresh', variant = 'outline' } } },
-                { type = 'list', id = 'offers-pending', title = ('Pending (%d)'):format(#pendingItems), layout = 'cards',
-                    items = pendingItems, empty = 'No pending offers.' },
-                { type = 'list', id = 'offers-history', title = ('History (%d)'):format(#historyItems), layout = 'cards',
-                    items = historyItems, empty = 'No accepted or denied offers yet.' },
+                { type = 'actions', actions = { { id = 'offers:refresh', label = QB.lang('c.management.offers.refresh'), variant = 'outline' } } },
+                { type = 'list', id = 'offers-pending', title = (QB.lang('c.management.offers.pending', #pendingItems)), layout = 'cards',
+                    items = pendingItems, empty = QB.lang('c.management.offers.emptyPending') },
+                { type = 'list', id = 'offers-history', title = (QB.lang('c.management.offers.history', #historyItems)), layout = 'cards',
+                    items = historyItems, empty = QB.lang('c.management.offers.emptyHistory') },
             },
         },
     }
@@ -310,9 +311,9 @@ local refresh, fail = fn.appRefresher(APP_ID, buildNavigation)
 
 local function saveRecord(patch)
     local result, err = QB.callback.trigger('qbdealership:management:save', dealerId, indexId, patch)
-    if not result then return fail(err or 'Save failed.') end
+    if not result then return fail(err or QB.lang('c.management.saveError')) end
     record = result
-    return refresh(fn.notice('Saved.'))
+    return refresh(fn.notice(QB.lang('c.management.save')))
 end
 
 local function onOfferAction(actionId)
@@ -320,36 +321,36 @@ local function onOfferAction(actionId)
 
     if actionId == 'offers:refresh' then
         if not loadOffers() then return refresh() end
-        return refresh(fn.notice('Offers refreshed.'))
+        return refresh(fn.notice(QB.lang('c.management.offers.refresh')))
     end
 
     local decision, offerId = actionId:match('^offers:(%a+):(%d+)$')
     if decision ~= 'accept' and decision ~= 'deny' then return nil end
 
-    local result, err = QB.callback.trigger('qbdealership:management:resolveOffer', dealerId, tonumber(offerId), decision)
+    local result, err = QB.callback.trigger('qbdealership:management:resolveOffer', dealerId, indexId, tonumber(offerId), decision)
     if not result then
         loadOffers()
-        return fail(err or 'Could not update that offer.')
+        return fail(err or QB.lang('c.management.offers.updateError'))
     end
     storeOffers(result)
-    return refresh(fn.notice(decision == 'accept' and 'Offer accepted.' or 'Offer denied.'))
+    return refresh(fn.notice(decision == 'accept' and QB.lang('c.management.offers.accepted') or QB.lang('c.management.offers.denied')))
 end
 
 local function onEmployeeAction(actionId, values)
     if actionId == 'employees:add' then
         local list, err = QB.callback.trigger('qbdealership:management:addEmployee', dealerId, indexId, values.serverId)
-        if not list then return fail(err or 'Could not add the employee.') end
+        if not list then return fail(err or QB.lang('c.management.employees.addError')) end
         employees = list
-        return refresh(fn.notice('Employee added.'))
+        return refresh(fn.notice(QB.lang('c.management.employees.added')))
     end
 
     local removedId = actionId:match('^employees:remove:(.+)$')
     if removedId then
         local list, err = QB.callback.trigger('qbdealership:management:removeEmployee', dealerId, indexId, removedId)
-        if not list then return fail(err or 'Could not remove the employee.') end
+        if not list then return fail(err or QB.lang('c.management.employees.removeError')) end
         employees = list
         permissions[removedId] = nil
-        return refresh(fn.notice('Employee removed.'))
+        return refresh(fn.notice(QB.lang('c.management.employees.removed')))
     end
 
     local employeeId, permission = actionId:match('^permissions:toggle:([^:]+):([^:]+)$')
@@ -361,37 +362,37 @@ local function onEmployeeAction(actionId, values)
         if not hadPermission then granted[#granted + 1] = permission end
 
         local map, err = QB.callback.trigger('qbdealership:management:savePermissions', dealerId, indexId, employeeId, granted)
-        if not map then return fail(err or 'Could not save permissions.') end
+        if not map then return fail(err or QB.lang('c.management.permissions.saveError')) end
         permissions = map
-        return refresh()
+        return refresh(fn.notice(QB.lang('c.management.permissions.saved')))
     end
 end
 
 local function onBusinessAction(actionId, values)
     if actionId == 'settings:save' then
         local saved, err = QB.callback.trigger('qbdealership:management:saveSettings', dealerId, indexId, values)
-        if not saved then return fail(err or 'Could not save settings.') end
+        if not saved then return fail(err or QB.lang('c.management.settings.saveError')) end
         settings = saved
-        return refresh(fn.notice('Settings saved.'))
+        return refresh(fn.notice(QB.lang('c.management.settings.saved')))
     end
 
     if actionId == 'funds:deposit' or actionId == 'funds:withdraw' then
         local isDeposit = actionId == 'funds:deposit'
         local result, err = QB.callback.trigger('qbdealership:management:' .. (isDeposit and 'depositFunds' or 'withdrawFunds'), dealerId, indexId, values.amount)
-        if not result then return fail(err or ('Could not %s the funds.'):format(isDeposit and 'deposit' or 'withdraw')) end
+        if not result then return fail(err or QB.lang('c.management.funds.error')) end
         funds.balance = result.balance or funds.balance
-        return refresh(fn.notice(isDeposit and 'Funds deposited.' or 'Funds withdrawn.'))
+        return refresh(fn.notice(isDeposit and QB.lang('c.management.funds.depositSuccess') or QB.lang('c.management.funds.withdrawSuccess')))
     end
 end
 
 local function onOrderAction(actionId, values)
     if actionId ~= 'orders:place' or not can('orderVehicles') then return nil end
     local result, err = QB.callback.trigger('qbdealership:management:orderVehicle', dealerId, indexId, values.model, values.quantity)
-    if not result then return fail(err or 'Could not place the order.') end
+    if not result then return fail(err or QB.lang('c.management.orders.error')) end
     record = result.record
     funds.balance = (funds.balance or 0) - result.cost
     funds.spent = (funds.spent or 0) + result.cost
-    return refresh(fn.notice(('Ordered %d for $%d.'):format(result.amount, result.cost)))
+    return refresh(fn.notice(QB.lang('c.management.orders.ordered', result.amount, result.cost)))
 end
 
 local function onListAction(actionId, values)
@@ -436,8 +437,8 @@ QB.nui.registerApp({
 
 
 local function saveAimedRecord(patch)
-    local result, err = QB.callback.trigger('qbdealership:management:save', dealerId, indexId, patch)
-    if result then record = result else fn.notify(err or 'Save failed.') end
+    local result, err = QB.callback.trigger('qbdealership:management:savePlacement', dealerId, indexId, patch)
+    if result then record = result else fn.notify(err or QB.lang('c.management.saveError')) end
 end
 
 local function permissionSet(permissionsByEmployee)
@@ -450,7 +451,7 @@ end
 local function loadManagementData()
     local data, err = QB.callback.trigger('qbdealership:management:openOwnerManagement', dealerId, indexId)
     if not data then
-        fn.notify(err or 'You do not have access to management here.')
+        fn.notify(err or QB.lang('c.management.noAccess'))
         return false
     end
 
@@ -507,7 +508,7 @@ fn.keepTargetZones({
     zoneField = 'managementZones',
     radius = Config.managementTargetRadius,
     icon = 'fas fa-briefcase',
-    label = 'Open management',
+    label = QB.lang('c.management.target'),
     canInteract = function() return true end, -- the server decides who gets in (owner or employee)
     open = function(dealer, index)
         openPortal(dealer, index)

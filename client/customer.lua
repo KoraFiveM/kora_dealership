@@ -76,21 +76,21 @@ local function vehicleCard(current, vehicle, categoryName, dealerType)
 
     local card = {
         id = vehicle.model,
-        label = ('%s | $%d'):format(name, price),
-        description = isCurrent and 'Currently displayed here' or nil,
-        tone = isCurrent and 'primary' or nil,
+        label = QB.lang('c.customer.displayLabel'):format(name, price),
+        description = isCurrent and QB.lang('c.customer.currentlyDisplayed') or nil,
+        tone = isCurrent and 'success' or nil,
         image = fn.getVehicleImage(vehicle.model),
-        metadata = { { label = 'Class', value = categoryName } },
+        metadata = { { label = QB.lang('c.customer.class'), value = categoryName } },
         actions = {
-            { id = 'swap:' .. vehicle.model, label = 'Swap', icon = 'Repeat', variant = 'outline', disabled = isCurrent,
+            { id = 'swap:' .. vehicle.model, label = QB.lang('c.customer.buttons.swap'), icon = 'Repeat', variant = 'outline', disabled = isCurrent,
                 description = 'Display this vehicle here instead. Everyone sees it; nothing is saved.' },
-            { id = 'test:' .. vehicle.model, label = 'Test drive', icon = 'Gauge', closeBeforeAction = true },
-            { id = 'purchase:' .. vehicle.model, label = 'Purchase', icon = 'ShoppingCart', variant = 'primary',
+            { id = 'test:' .. vehicle.model, label = QB.lang('c.customer.buttons.test'), icon = 'Gauge', closeBeforeAction = true },
+            { id = 'purchase:' .. vehicle.model, label = QB.lang('c.customer.buttons.purchase'), icon = 'ShoppingCart', variant = 'primary',
                 closeBeforeAction = true, confirm = ('Purchase %s for $%d?'):format(name, price) },
         },
     }
     if dealerType == 'owned' then
-        table.insert(card.actions, { id = 'offer:' .. vehicle.model, label = 'Make offer', icon = 'DollarSign', closeBeforeAction = true })
+        table.insert(card.actions, { id = 'offer:' .. vehicle.model, label = QB.lang('c.customer.buttons.offer'), icon = 'DollarSign', closeBeforeAction = true })
     end
     return card
 end
@@ -119,7 +119,7 @@ local function showroomNavigation(ctx)
 
     local current = modelFor(ctx.dealer, ctx.index, placement)
     local resetAction = {
-        id = 'swap:reset', label = 'Reset display to default', icon = 'RotateCcw', variant = 'outline',
+        id = 'swap:reset', label = QB.lang('c.customer.reset'), icon = 'RotateCcw', variant = 'outline',
         disabled = current == placement.model,
     }
 
@@ -175,18 +175,18 @@ end
 local function offerAmountNavigation(vehicle)
     return {
         {
-            id = 'amount', label = 'Offer', icon = 'DollarSign',
+            id = 'amount', label = QB.lang('c.customer.offer.label'), icon = 'DollarSign',
             content = {
-                title = 'Make an offer',
-                description = vehicle and ('%s · asking $%d'):format(vehicle.name, vehicle.price) or '',
+                title = QB.lang('c.customer.offer.title'),
+                description = vehicle and ('%s · ' .. QB.lang('c.customer.offer.asking')):format(vehicle.name, vehicle.price) or '',
                 blocks = {
                     {
-                        type = 'form', id = 'offer-amount', title = 'Step 1 of 2: amount',
+                        type = 'form', id = 'offer-amount', title = QB.lang('c.customer.offer.step1'),
                         fields = {
-                            { id = 'amount', label = 'Offer amount', type = 'number',
+                            { id = 'amount', label = QB.lang('c.customer.offer.offerAmt'), type = 'number',
                               min = 1, max = Config.maxPrice, default = vehicle and vehicle.price or 1, required = true },
                         },
-                        action = { id = 'offer:amount', label = 'Next' },
+                        action = { id = 'offer:amount', label = QB.lang('c.customer.offer.next') },
                     },
                 },
             },
@@ -198,17 +198,17 @@ local function offerTermsNavigation(vehicle)
     local offering = vehicle and offerInput and offerInput.amount
     return {
         {
-            id = 'terms', label = 'Offer', icon = 'DollarSign',
+            id = 'terms', label = QB.lang('c.customer.offer.label'), icon = 'DollarSign',
             content = {
-                title = 'Make an offer',
-                description = offering and ('%s · offering $%d'):format(vehicle.name, offerInput.amount) or '',
+                title = QB.lang('c.customer.offer.title'),
+                description = offering and ('%s · ' .. QB.lang('c.customer.offer.asking')):format(vehicle.name, offerInput.amount) or '',
                 blocks = {
                     {
-                        type = 'form', id = 'offer-terms', title = 'Step 2 of 2: additional terms',
+                        type = 'form', id = 'offer-terms', title = QB.lang('c.customer.offer.step2'),
                         fields = {
-                            { id = 'terms', label = 'Additional terms', type = 'text', default = '', description = 'Optional.' },
+                            { id = 'terms', label = QB.lang('c.customer.offer.terms'), type = 'textarea', default = '', description = QB.lang('c.customer.offer.optional') },
                         },
-                        action = { id = 'offer:terms', label = 'Submit offer' },
+                        action = { id = 'offer:terms', label = QB.lang('c.customer.offer.submit') },
                     },
                 },
             },
@@ -243,8 +243,8 @@ end
 
 local function registerOfferApp(appId, viewId, navigation, onAction)
     QB.nui.registerApp({
-        id = appId, title = 'Make an offer', icon = 'DollarSign', layout = 'standard',
-        width = 640, height = 420, defaultView = viewId,
+        id = appId, title = QB.lang('c.customer.offer.title'), icon = 'DollarSign', layout = 'compact',
+        width = 800, height = 640, defaultView = viewId,
         navigation = navigation, onAction = onAction,
     })
 end
@@ -276,15 +276,15 @@ local function startTestDrive(vehicle)
         local originHeading = GetEntityHeading(ped)
 
         local netId, err = QB.callback.trigger('qbdealership:testDrive', vehicle.dealer, vehicle.index, vehicle.model)
-        if not netId then return fn.notify(err or 'Could not start the test drive.') end
+        if not netId then return fn.notify(err or QB.lang('c.customer.test.error')) end
 
         local testVehicle = fn.waitForNetworkVehicle(netId, 5000)
         if not testVehicle then
             TriggerServerEvent('qbdealership:endTestDrive')
-            return fn.notify('The test vehicle did not load.')
+            return fn.notify(QB.lang('c.customer.test.error'))
         end
 
-        fn.notify('Test drive started. Get out of the vehicle to end it.', 'info')
+        fn.notify(QB.lang('c.customer.test.started'), 'info')
         Wait(1500)
         while DoesEntityExist(testVehicle) and GetVehiclePedIsIn(PlayerPedId(), false) == testVehicle do Wait(500) end
 
@@ -308,7 +308,6 @@ local vehicleActions = {
     offer = runOfferFlow,
 }
 
--- Puts `model` on display at the placement (nil resets it); everyone sees it, nothing is saved.
 local function swapDisplay(ctx, model, successMessage, failureMessage)
     local ok, err = QB.callback.trigger('qbdealership:swap', ctx.dealer, ctx.index, model)
     if not ok then return { notice = fn.notice(err or failureMessage, 'destructive') } end
@@ -323,14 +322,14 @@ local function onShowroomAction(actionId, context)
     if not placement then return { close = true } end
 
     if actionId == 'swap:reset' then
-        return swapDisplay(ctx, nil, 'Reset to the default display vehicle.', 'Could not reset the display vehicle.')
+        return swapDisplay(ctx, nil, QB.lang('c.customer.swap.success'), QB.lang('c.customer.swap.error'))
     end
 
     local kind, model = actionId:match('^(%a+):(.+)$')
     if not kind or not model then return {} end
 
     if kind == 'swap' then
-        return swapDisplay(ctx, model, 'Display vehicle updated.', 'Could not switch the display vehicle.')
+        return swapDisplay(ctx, model, QB.lang('c.customer.swap.success'), QB.lang('c.customer.swap.error'))
     end
 
     local vehicle = vehicleDescriptor(dealerData, ctx.dealer, ctx.index, model)
@@ -367,7 +366,6 @@ local function openShowroom(dealer, index)
     end)
 end
 
--- --- the world: dealership zones and display vehicles ----------------------------------
 
 local function removeZone(dealer)
     if zones[dealer] then
@@ -399,7 +397,7 @@ local function attachBrowseTarget(entity, dealer, index)
     exports.qbtarget:addEntity(entity, {
         {
             icon = 'fas fa-car',
-            label = 'Browse dealership',
+            label = QB.lang('c.customer.target'),
             onSelect = function() CreateThread(function() openShowroom(dealer, index) end) end,
         },
     })
@@ -448,7 +446,6 @@ local function syncDealer(dealer, old, new)
         return
     end
 
-    -- same placements: only re-spawn the ones whose displayed model changed
     for index, placement in ipairs(new.placements or {}) do
         if (shown[dealer] and shown[dealer][index]) ~= modelFor(dealer, index, placement) then
             removeVehicle(dealer, index)
@@ -473,7 +470,6 @@ local function syncAll()
     end
 end
 
--- Runs syncAll on its own thread; changes that arrive mid-sync trigger another pass.
 local dirty, running = false, false
 local function queueSync()
     dirty = true
