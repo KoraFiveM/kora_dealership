@@ -69,11 +69,7 @@ QB.callback.register('qbdealership:delete', function(src, id)
     local ok, deleteErr = QB.sql.update('DELETE FROM `qbdealerships` WHERE `id` = ?', { id })
     if not ok then return false, deleteErr or 'Failed to delete dealership.' end
 
-    Dealerships[id] = nil
-    Swaps[id] = nil
-    fn.publishSwaps()
-    fn.publish()
-    fn.publishStaff()
+    fn.forgetDealership(id)
     return true
 end)
 
@@ -84,14 +80,12 @@ QB.callback.register('qbdealership:save', function(src, id, patch)
     return fn.patchDealership(id, patch)
 end)
 
-local lastSwap = {}
-AddEventHandler('playerDropped', function() lastSwap[source] = nil end)
-
 QB.callback.register('qbdealership:swap', function(src, dealerId, index, model)
     local record = type(dealerId) == 'string' and Dealerships[dealerId]
     if not record then return fn.fail('Unknown dealership.') end
 
-    index = math.tointeger(tonumber(index))
+    local number = tonumber(index)
+    index = number and math.tointeger(number)
     local placement = index and record.placements[index]
     if not placement then return fn.fail('Unknown display vehicle.') end
 
@@ -101,21 +95,16 @@ QB.callback.register('qbdealership:swap', function(src, dealerId, index, model)
         if not fn.findVehicle(record, model) then return fn.fail('That vehicle is not sold here.') end
     end
 
-    local now = GetGameTimer()
-    if lastSwap[src] and now - lastSwap[src] < Config.swapCooldown then
-        return fn.fail('Slow down.')
-    end
+    if not fn.rateLimit(src, 'swap', Config.swapCooldown) then return fn.fail('Slow down.') end
 
-    if not fn.nearPlacement(src, record, index, Config.swapDistance) then
-        return fn.fail('You are too far from that vehicle.')
-    end
+    local near, err = fn.nearPoint(src, record, 'placements', index, Config.swapDistance)
+    if not near then return fn.fail(err) end
 
     local key = tostring(index)
     local forDealer = Swaps[dealerId] or {}
     forDealer[key] = (model and model ~= placement.model) and model or nil
     Swaps[dealerId] = next(forDealer) ~= nil and forDealer or nil
 
-    lastSwap[src] = now
     fn.publishSwaps()
     return true
 end)

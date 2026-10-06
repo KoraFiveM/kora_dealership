@@ -1,20 +1,44 @@
-local registered, failed = 0, 0
+local fieldNames = {
+    placements = 'Display vehicles',
+    spawns = 'Spawn points',
+    managementZones = 'Management zones',
+    saleZones = 'Sale zones',
+}
 
-local function registerCall(name, handler)
-    local ok, err = pcall(function() QB.callback.register(name, handler) end)
-    if ok then
-        registered = registered + 1
+local decisions = { accept = 'accepted', deny = 'denied' }
+
+local nameSql = 'CONCAT(JSON_UNQUOTE(JSON_EXTRACT(%s.`charinfo`, "$.firstname")), " ", JSON_UNQUOTE(JSON_EXTRACT(%s.`charinfo`, "$.lastname")))'
+local offerSelect = ([[SELECT o.*, %s AS `offeror_name`, %s AS `acceptor_name`,
+        DATE_FORMAT(o.`auto_accept_at`, '%%Y-%%m-%%d %%H:%%i') AS `expiry_text`
+    FROM `qbdealership_offers` o
+    LEFT JOIN `players` p ON p.`citizenid` = o.`offeror` COLLATE utf8mb4_unicode_ci
+    LEFT JOIN `players` a ON a.`citizenid` = o.`acceptor` COLLATE utf8mb4_unicode_ci
+    WHERE o.`dealership_id` = ? AND o.`status` {op} ? ORDER BY o.`id` DESC LIMIT ?]]):format(nameSql:format('p', 'p'), nameSql:format('a', 'a'))
+
+-- Authorisation
+
+-- requirement: 'owner', 'employee' (owner included), or a permission value from Config.employeePermissions.
+-- Returns the dealership record, or false and a message. Validates the client-supplied dealer and index.
+local function authorize(src, dealer, index, requirement)
+    local record = type(dealer) == 'string' and Dealerships[dealer]
+    if not record or record.type ~= 'owned' then return fn.fail('This dealership is not owned.') end
+
+    local allowed
+    if requirement == 'owner' then
+        allowed = fn.isOwner(src, dealer)
+    elseif requirement == 'employee' then
+        allowed = fn.isEmployee(src, dealer)
     else
-        failed = failed + 1
-        print(('^1[qbdealership] FAILED to register %s: %s^7'):format(name, tostring(err)))
+        allowed = fn.canEmployeeDo(src, dealer, requirement)
     end
+    if not allowed then return fn.fail('You are not permitted to do that here.') end
+
+    local near, err = fn.nearPoint(src, record, 'managementZones', index, Config.managementDistance)
+    if not near then return fn.fail(err) end
+    return record
 end
 
-local function inZoneAndCan(src, dealer, index, ownerOnly)
-    assert((ownerOnly and fn.isOwner(src, dealer)) or (not ownerOnly and (fn.isOwner(src, dealer) or fn.isEmployee(src, dealer))), 'Only the employees can open management.')
-    assert(QB.distance.player(src, Dealerships[dealer].managementZones[index].coords, Config.managementDistance), 'You are too far from the management point.')
-    return true
-end
+-- Employees
 
 local function findEmployee(data, cid)
     for id, employee in ipairs(data.employees) do
@@ -22,31 +46,81 @@ local function findEmployee(data, cid)
     end
 end
 
-local function addEmployee(dealer, cid, name)
-    if not DealerData[dealer] then return end
-    if findEmployee(DealerData[dealer], cid) then return end
-    DealerData[dealer].employees[#DealerData[dealer].employees + 1] = { citizenid = cid, name = name }
-    DealerData[dealer].permissions[cid] = {}
-    QB.sql.query('UPDATE qbdealership_management SET employees = ?, employee_permissions = ? WHERE dealership_id = ?', { json.encode(DealerData[dealer].employees), json.encode(DealerData[dealer].permissions), dealer })
-    fn.publishStaff()
-    return DealerData[dealer].employees
+local function openOwnerManagement(src, dealer, index)
+    local record, err = authorize(src, dealer, index, 'employee')
+    if not record then return fn.fail(err) end
+
+    local data = fn.management(dealer)
+    local owner = fn.isOwner(src, dealer)
+    local cid = fn.citizenId(src)
+
+    return {
+        owner = owner,
+        employees = data.employees,
+        permissions = owner and data.permissions or { [cid] = data.permissions[cid] or {} },
+        settings = data.settings,
+        balance = { balance = data.balance, income = data.income, spent = data.spent },
+    }
 end
 
-local function removeEmployee(dealer, cid)
-    if not DealerData[dealer] then return end
-    local data = DealerData[dealer]
-    local _, employeeIndex = findEmployee(data, cid)
-    if not employeeIndex then return end
-    table.remove(data.employees, employeeIndex)
-    data.permissions[cid] = nil
-    QB.sql.query('UPDATE qbdealership_management SET employees = ?, employee_permissions = ? WHERE dealership_id = ?', { json.encode(data.employees), json.encode(data.permissions), dealer })
+local function addEmployee(src, dealer, index, serverId)
+    local record, err = authorize(src, dealer, index, 'owner')
+    if not record then return fn.fail(err) end
+
+    local data = fn.management(dealer)
+    if #data.employees >= Config.maxEmployees then return fn.fail('This dealership has reached its employee limit.') end
+
+    local number = tonumber(serverId)
+    local target = number and math.tointeger(number)
+    if not target or target == src or GetPlayerPed(target) == 0 then return fn.fail('That player is not available.') end
+
+    local close = QB.distance.coords(GetEntityCoords(GetPlayerPed(src)), GetEntityCoords(GetPlayerPed(target)), Config.nearbyCustomerDistance)
+    if not close then return fn.fail('That player is too far away.') end
+
+    local cid = fn.citizenId(target)
+    if not cid then return fn.fail('That player is not available.') end
+    if cid == record.owner then return fn.fail('The owner cannot be added as an employee.') end
+    if findEmployee(data, cid) then return fn.fail('That player already works here.') end
+
+    local employees = fn.copy(data.employees)
+    employees[#employees + 1] = { citizenid = cid, name = fn.playerName(target) }
+    local permissions = fn.copy(data.permissions)
+    permissions[cid] = {}
+
+    if not fn.updateManagement(dealer, { employees = employees, permissions = permissions }) then
+        return fn.fail('Could not save the employee.')
+    end
     fn.publishStaff()
-    return data.employees
+    return employees
 end
 
-local function updatePermission(dealer, cid, list)
-    local data = DealerData[dealer]
-    if not findEmployee(data, cid) then return false end
+local function removeEmployee(src, dealer, index, cid)
+    local record, err = authorize(src, dealer, index, 'owner')
+    if not record then return fn.fail(err) end
+
+    local data = fn.management(dealer)
+    local _, position = findEmployee(data, cid)
+    if not position then return fn.fail('That employee does not exist.') end
+
+    local employees = fn.copy(data.employees)
+    table.remove(employees, position)
+    local permissions = fn.copy(data.permissions)
+    permissions[cid] = nil
+
+    if not fn.updateManagement(dealer, { employees = employees, permissions = permissions }) then
+        return fn.fail('Could not remove the employee.')
+    end
+    fn.publishStaff()
+    return employees
+end
+
+local function savePermissions(src, dealer, index, cid, list)
+    local record, err = authorize(src, dealer, index, 'owner')
+    if not record then return fn.fail(err) end
+
+    local data = fn.management(dealer)
+    if not findEmployee(data, cid) or type(list) ~= 'table' then return fn.fail('Could not save permissions.') end
+
     local allowed = {}
     for _, entry in ipairs(Config.employeePermissions) do allowed[entry.value] = true end
 
@@ -57,62 +131,31 @@ local function updatePermission(dealer, cid, list)
             granted[#granted + 1] = permission
         end
     end
+
     local permissions = fn.copy(data.permissions)
     permissions[cid] = granted
-    DealerData[dealer].permissions = permissions
-    QB.sql.query('UPDATE qbdealership_management SET employee_permissions = ? WHERE dealership_id = ?', { json.encode(permissions), dealer })
+    if not fn.updateManagement(dealer, { permissions = permissions }) then return fn.fail('Could not save permissions.') end
+
     fn.publishStaff()
     return permissions
 end
 
-registerCall('qbdealership:management:openOwnerManagement', function(src, dealer, index)
-    if not inZoneAndCan(src, dealer, index, false) then return end
-    local data = DealerData[dealer]
-    return {
-        owner = fn.isOwner(src, dealer),
-        employees = data.employees,
-        permissions = data.permissions,
-        settings = data.settings,
-        balance = { balance = data.balance, income = data.income, spent = data.spent }
-    }
-end)
-
-
-registerCall('qbdealership:management:addEmployee', function(src, dealer, index, serverId)
-    if not inZoneAndCan(src, dealer, index, true) then return end
-    local data = DealerData[dealer]
-    if #data.employees >= Config.maxEmployees then
-        return fn.notify(src, 'This dealership has reached its employee limit.', 'error')
-    end
-    return addEmployee(dealer, fn.playerCid(tonumber(serverId)), fn.playerName(tonumber(serverId)))
-end)
-
-registerCall('qbdealership:management:removeEmployee', function(src, dealer, index, cid)
-    if not inZoneAndCan(src, dealer, index, true) then return end
-    return removeEmployee(dealer, cid)
-end)
-
-registerCall('qbdealership:management:savePermissions', function(src, dealer, index, cid, list)
-    if not inZoneAndCan(src, dealer, index, true) then return end
-    local permissions = updatePermission(dealer, cid, list)
-    if not permissions then return fn.notify(src, 'Could not save permissions.', 'error') end
-    return permissions
-end)
-
-registerCall('qbdealership:management:saveSettings', function(src, dealer, index, values)
-    if not inZoneAndCan(src, dealer, index, true) then return end
-    if type(values) ~= 'table' then return fn.notify(src, 'Invalid settings.', 'error') end
+local function saveSettings(src, dealer, index, values)
+    local record, err = authorize(src, dealer, index, 'owner')
+    if not record then return fn.fail(err) end
+    if type(values) ~= 'table' then return fn.fail('Invalid settings.') end
 
     local settings = {}
     for key, default in pairs(fn.defaultSettings) do
         local value = tonumber(values[key])
-        settings[key] = value and math.max(0, math.min(100, math.floor(value))) or default
+        settings[key] = value and value == value and math.max(0, math.min(100, math.floor(value))) or default
     end
 
-    DealerData[dealer].settings = settings
-    QB.sql.query('UPDATE qbdealership_management SET settings = ? WHERE dealership_id = ?', { json.encode(settings), dealer })
+    if not fn.updateManagement(dealer, { settings = settings }) then return fn.fail('Could not save settings.') end
     return settings
-end)
+end
+
+-- Placements, spawns and zones
 
 local function insidePolygon(x, y, points)
     local inside = false
@@ -146,15 +189,11 @@ local function coordKey(coords)
     return ('%.3f,%.3f,%.3f'):format(tonumber(coords.x) or 0, tonumber(coords.y) or 0, tonumber(coords.z) or 0)
 end
 
-local fieldNames = {
-    placements = 'Display vehicles',
-    spawns = 'Spawn points',
-    managementZones = 'Management zones',
-    saleZones = 'Sale zones',
-}
-
 local function validateNewEntries(record, field, list)
     if type(list) ~= 'table' then return false, 'Invalid ' .. field .. '.' end
+    if #list > fn.fieldLimits[field] then
+        return false, ('%s are limited to %d.'):format(fieldNames[field], fn.fieldLimits[field])
+    end
 
     local existing = {}
     for _, entry in ipairs(record[field]) do existing[coordKey(entry.coords)] = true end
@@ -173,13 +212,12 @@ local function validateNewEntries(record, field, list)
     return true
 end
 
-registerCall('qbdealership:management:savePlacement', function(src, dealer, index, patch)
-    if not inZoneAndCan(src, dealer, index, false) then return end
+local function savePlacement(src, dealer, index, patch)
+    local record, err = authorize(src, dealer, index, 'employee')
+    if not record then return fn.fail(err) end
     if type(patch) ~= 'table' then return fn.fail('Nothing to save.') end
 
-    local record = Dealerships[dealer]
     local owner = fn.isOwner(src, dealer)
-
     local allowed = {}
     for field in pairs(fieldNames) do
         if patch[field] ~= nil then
@@ -195,107 +233,82 @@ registerCall('qbdealership:management:savePlacement', function(src, dealer, inde
     if next(allowed) == nil then return fn.fail('Nothing to save.') end
 
     return fn.patchDealership(dealer, allowed)
-end)
+end
 
+-- Funds
 
+local function depositFunds(src, dealer, index, amount)
+    local record, err = authorize(src, dealer, index, 'owner')
+    if not record then return fn.fail(err) end
+    if not fn.rateLimit(src, 'funds', Config.rateLimits.funds) then return fn.fail('Slow down.') end
 
-registerCall('qbdealership:management:depositFunds', function(src, dealer, index, amount)
-    if not inZoneAndCan(src, dealer, index, true) then return end
-    amount = tonumber(amount) or 0
-    if amount < 1 then return fn.fail('Enter a valid amount.') end
-
-    if not exports.qbcore:removeMoney(src, 'bank', amount) then
-        return fn.notify(src, 'Not enough money in your bank account.', 'error')
+    amount = fn.toAmount(amount, Config.maxBalance)
+    if not amount then return fn.fail('Enter a valid amount.') end
+    if fn.management(dealer).balance + amount > Config.maxBalance then
+        return fn.fail('That would exceed the maximum dealership balance.')
     end
 
-    local balance = DealerData[dealer].balance
-    balance = balance + amount
-    DealerData[dealer].balance = balance
-    QB.sql.query('UPDATE qbdealership_management SET current_balance = ? WHERE dealership_id = ?', { balance, dealer })
+    if not exports.qbcore:removeMoney(src, 'bank', amount) then return fn.fail('Not enough money in your bank account.') end
 
-    return { balance = balance }
-end)
-
-
-registerCall('qbdealership:management:withdrawFunds', function(src, dealer, index, amount)
-    if not inZoneAndCan(src, dealer, index, true) then return end
-    amount = tonumber(amount) or 0
-    if amount < 1 then return fn.fail('Enter a valid amount.') end
-
-    local data = DealerData[dealer]
-    local balance = data.balance
-    if balance < amount then
-        return fn.fail('The dealership does not have enough funds.')
+    local data = fn.management(dealer)
+    if not fn.updateManagement(dealer, { balance = data.balance + amount }) then
+        exports.qbcore:addMoney(src, 'bank', amount)
+        return fn.fail('Could not save the deposit. You were refunded.')
     end
+    return { balance = data.balance + amount }
+end
 
-    balance = balance - amount
-    DealerData[dealer].balance = balance
-    QB.sql.query('UPDATE qbdealership_management SET current_balance = ? WHERE dealership_id = ?', { balance, dealer })
+local function withdrawFunds(src, dealer, index, amount)
+    local record, err = authorize(src, dealer, index, 'owner')
+    if not record then return fn.fail(err) end
+    if not fn.rateLimit(src, 'funds', Config.rateLimits.funds) then return fn.fail('Slow down.') end
+
+    amount = fn.toAmount(amount, Config.maxBalance)
+    if not amount then return fn.fail('Enter a valid amount.') end
+
+    local data = fn.management(dealer)
+    if data.balance < amount then return fn.fail('The dealership does not have enough funds.') end
+
+    local balance = data.balance - amount
+    if not fn.updateManagement(dealer, { balance = balance }) then return fn.fail('Could not save the withdrawal.') end
+
     exports.qbcore:addMoney(src, 'bank', amount)
     return { balance = balance }
-end)
+end
 
-registerCall('qbdealership:management:orderVehicle', function(src, dealer, index, model, quantity)
-    if not inZoneAndCan(src, dealer, index, false) then return end
-    local amount = tonumber(quantity)
+local function orderVehicle(src, dealer, index, model, quantity)
+    local record, err = authorize(src, dealer, index, 'orderVehicles')
+    if not record then return fn.fail(err) end
 
-    if not amount or amount < 1 or amount > Config.maxOrderQuantity then
-        return fn.fail(('Order between 1 and %d vehicles.'):format(Config.maxOrderQuantity))
-    end
+    local amount = fn.toAmount(quantity, Config.maxOrderQuantity)
+    if not amount then return fn.fail(('Order between 1 and %d vehicles.'):format(Config.maxOrderQuantity)) end
 
-    model = type(model) == 'string' and model:lower()
-
-    local entry = fn.findVehicle(Dealerships[dealer], model)
-
+    local entry = fn.findVehicle(record, model)
     if not entry then return fn.fail('That vehicle is not sold here.') end
-
     if (tonumber(entry.stock) or 0) + amount > Config.maxStock then
         return fn.fail(('This would exceed the stock limit of %d.'):format(Config.maxStock))
     end
 
     local cost = DealershipOrders.unitCost(entry.price) * amount
-    local data = DealerData[dealer]
-
+    local data = fn.management(dealer)
     if data.balance < cost then
         return fn.fail(('Not enough dealership funds ($%d needed, $%d available).'):format(cost, data.balance))
     end
-    
-    data.balance = data.balance - cost
-    QB.sql.query('UPDATE qbdealership_management SET current_balance = ? WHERE dealership_id = ?', { data.balance, dealer })
-    fn.adjustStock(dealer, model, amount)
+
+    if not fn.updateManagement(dealer, { balance = data.balance - cost, spent = data.spent + cost }) then
+        return fn.fail('Could not save the order.')
+    end
+
+    if not fn.adjustStock(dealer, entry.model, amount) then
+        fn.updateManagement(dealer, { balance = data.balance, spent = data.spent })
+        return fn.fail('Could not add the stock. You were not charged.')
+    end
     return { record = Dealerships[dealer], cost = cost, amount = amount }
-end)
-
-local function authorizeOffers(src, dealer, index)
-    local record = Dealerships[dealer]
-    if not record or record.type ~= 'owned' then return nil, 'This dealership is not owned.' end
-    if not fn.canEmployeeDo(src, dealer, 'handleOffers') then return nil, 'You are not permitted to view offers here.' end
-    if not QB.distance.player(src, Dealerships[dealer].managementZones[index].coords, Config.managementDistance) then
-        return nil, 'You are too far from the management point.'
-    end
-    return record
 end
 
-local function formatTime(value)
-    if not value or value == QB.sql.NULL then return nil end
-    if type(value) == 'number' then
-        local seconds = value > 1e11 and math.floor(value / 1000) or math.floor(value)
-        return os.date('!%Y-%m-%d %H:%M UTC', seconds)
-    end
-    return tostring(value):sub(1, 16) .. ' UTC'
-end
+-- Offers
 
-local function onlineNames()
-    local names = {}
-    for _, id in ipairs(GetPlayers()) do
-        local player = tonumber(id)
-        local cid = player and fn.citizenId(player)
-        if cid then names[cid] = fn.playerName(player) end
-    end
-    return names
-end
-
-local function toOffer(record, row, names)
+local function offerView(record, row)
     local entry = fn.findVehicle(record, row.model)
     return {
         id = row.id,
@@ -304,99 +317,140 @@ local function toOffer(record, row, names)
         asking = entry and math.floor(tonumber(entry.price) or 0) or nil,
         price = math.floor(tonumber(row.offer_price) or 0),
         terms = row.offer_text or '',
-        offeror = fn.getPlayerName(row.offeror) or row.offeror,
+        offeror = row.offeror_name or row.offeror,
         status = row.status,
-        handledBy = row.acceptor and fn.getPlayerName(row.acceptor) or row.acceptor or nil,
-        expiry = formatTime(row.auto_accept_at),
+        handledBy = row.acceptor == 'system' and 'Auto-accepted' or row.acceptor_name or row.acceptor,
+        expiry = row.expiry_text,
     }
 end
 
-
-local function loadOffers(record, names)
+local function loadOffers(record)
     local limit = math.max(1, math.floor(tonumber(Config.offersPageLimit) or 50))
-
-    local rows = QB.sql.query('SELECT * FROM `qbdealership_offers` WHERE `dealership_id` = ? AND `status` IN (?, ?, ?) ORDER BY `id` DESC LIMIT ' .. limit, { record.id, 'pending', 'accepted', 'denied' }) or {}
     local result = { pending = {}, history = {} }
 
-    for _, row in ipairs(rows) do
-        local key = row.status == 'pending' and 'pending' or 'history'
-        result[key][#result[key] + 1] = toOffer(record, row, names)
-    end
+    local pending = QB.sql.query(offerSelect:gsub('{op}', '='), { record.id, 'pending', limit }) or {}
+    for _, row in ipairs(pending) do result.pending[#result.pending + 1] = offerView(record, row) end
+
+    local history = QB.sql.query(offerSelect:gsub('{op}', '<>'), { record.id, 'pending', limit }) or {}
+    for _, row in ipairs(history) do result.history[#result.history + 1] = offerView(record, row) end
+
     return result
 end
 
-local function refreshOfferCache(dealer)
-    Offers[dealer] = nil
-    local rows = QB.sql.query('SELECT * FROM `qbdealership_offers` WHERE `dealership_id` = ? AND `status` = ?', { dealer, 'pending' }) or {}
-    for _, row in ipairs(rows) do
-        Offers[dealer] = Offers[dealer] or {}
-        table.insert(Offers[dealer], {
-            model = row.model,
-            price = row.offer_price,
-            additional = row.offer_text,
-            offeror = row.offeror,
-            expiry = row.auto_accept_at,
-        })
-    end
-end
-
-registerCall('qbdealership:management:getOffers', function(src, dealer, index)
-    assert(src, dealer, index, "missing parameter(s)")
-
-    local record, err = authorizeOffers(src, dealer, index)
+local function getOffers(src, dealer, index)
+    local record, err = authorize(src, dealer, index, 'handleOffers')
     if not record then return fn.fail(err) end
-    return loadOffers(record, onlineNames())
-end)
-
-local decisions = { accept = 'accepted', deny = 'denied' }
-
-local function getOfferData(dealer, offerId)
-    for i = 1, #Offers[dealer] do
-        if Offers[dealer][i].id == offerId then
-            return Offers[dealer][i]
-        end
-    end
-    return nil
+    return loadOffers(record)
 end
 
-local function removeMoney(cid, amount)
-    amount = tonumber(amount) or 0
-    if amount <= 0 then return false end
-
-    local player = exports.qbcore:getPlayerByCitizenId(cid)
-
-    if player then
-        return player.removeMoney(amount)
-    end
-
+-- Moves a pending offer to `status`. Exactly one caller can win; affectedRows says whether it was us.
+local function claimOffer(id, dealer, from, status, acceptor)
     local result = QB.sql.query(
-        'UPDATE `players` SET `money` = JSON_SET(`money`, "$.cash", JSON_EXTRACT(`money`, "$.cash") - ?) WHERE `citizenid` = ? AND JSON_EXTRACT(`money`, "$.cash") >= ?',
-        { amount, cid, amount }
+        'UPDATE `qbdealership_offers` SET `status` = ?, `acceptor` = ? WHERE `id` = ? AND `dealership_id` = ? AND `status` = ?',
+        { status, acceptor, id, dealer, from }
     )
-
-    return result and result.affectedRows == 1
+    return result ~= nil and result.affectedRows == 1
 end
 
-registerCall('qbdealership:management:resolveOffer', function(src, dealer, index, offerId, decision)
-    local record, err = authorizeOffers(src, dealer, index)
+local function settleOffer(dealer, id, decision, acceptor)
+    local record = Dealerships[dealer]
+    if not record or record.type ~= 'owned' then return fn.fail('This dealership is not owned.') end
+
+    local rows = QB.sql.query(
+        'SELECT * FROM `qbdealership_offers` WHERE `id` = ? AND `dealership_id` = ? AND `status` = ?',
+        { id, dealer, 'pending' }
+    )
+    local offer = rows and rows[1]
+    if not offer then return fn.fail('That offer has already been handled.') end
+
+    if decision == 'deny' then
+        if not claimOffer(id, dealer, 'pending', 'denied', acceptor) then return fn.fail('That offer has already been handled.') end
+        return true
+    end
+
+    local entry = fn.findVehicle(record, offer.model)
+    if not entry then return fn.fail('That vehicle is no longer sold here.') end
+    if not fn.inStock(record, entry) then return fn.fail('That vehicle is out of stock.') end
+
+    if not claimOffer(id, dealer, 'pending', 'accepted', acceptor) then return fn.fail('That offer has already been handled.') end
+
+    local price = math.floor(tonumber(offer.offer_price) or 0)
+    local function release()
+        claimOffer(id, dealer, 'accepted', 'pending', QB.sql.NULL)
+    end
+
+    if not fn.takeCash(offer.offeror, price) then
+        release()
+        return fn.fail('The offeror cannot afford this offer.')
+    end
+
+    if not fn.adjustStock(dealer, offer.model, -1) then
+        fn.giveCash(offer.offeror, price)
+        release()
+        return fn.fail('That vehicle is out of stock.')
+    end
+
+    if not fn.creditSale(dealer, price) then
+        fn.adjustStock(dealer, offer.model, 1)
+        fn.giveCash(offer.offeror, price)
+        release()
+        return fn.fail('Could not credit the dealership.')
+    end
+
+    if not fn.deliverVehicle(offer.offeror, offer.model) then
+        fn.creditSale(dealer, -price)
+        fn.adjustStock(dealer, offer.model, 1)
+        fn.giveCash(offer.offeror, price)
+        release()
+        return fn.fail('Could not deliver the vehicle. The offeror was refunded.')
+    end
+    return true
+end
+
+local function resolveOffer(src, dealer, index, offerId, decision)
+    local record, err = authorize(src, dealer, index, 'handleOffers')
     if not record then return fn.fail(err) end
 
-    local status = decisions[decision]
-    local id = tonumber(offerId)
-    if not status or not id then return fn.fail('Invalid offer.') end
+    local number = tonumber(offerId)
+    local id = number and math.tointeger(number)
+    if not decisions[decision] or not id then return fn.fail('Invalid offer.') end
 
-    local offer = getOfferData(dealer, offerId)
-    if not offer then return fn.fail('That offer no longer exists.') end
-    if offer.status ~= 'pending' then return fn.fail('That offer has already been handled.') end
+    local ok, reason = settleOffer(dealer, id, decision, fn.citizenId(src))
+    if not ok then return fn.fail(reason) end
+    return loadOffers(record)
+end
 
-    if not removeMoney(offer.offeror, offer.price) then return fn.fail('Failed to remove money from the offeror.') end
-    local acceptor = fn.citizenId(src)
-    QB.sql.query(
-        'UPDATE `qbdealership_offers` SET `status` = ?, `acceptor` = ? WHERE `id` = ? AND `dealership_id` = ? AND `status` = ?',
-        { status, acceptor, id, record.id, 'pending' }
-    )
+-- Offers past their auto-accept time are accepted; one that can no longer be completed is denied.
+local function processDueOffers()
+    local due = QB.sql.query(
+        'SELECT `id`, `dealership_id` FROM `qbdealership_offers` WHERE `status` = ? AND `auto_accept_at` IS NOT NULL AND `auto_accept_at` <= NOW() LIMIT 20',
+        { 'pending' }
+    ) or {}
 
-    fn.deliverVehicle(offer.offeror, offer.model, fn.getFreeSpawn(Dealerships[dealer].spawns))
-    refreshOfferCache(dealer)
-    return loadOffers(record, onlineNames())
-end)
+    for _, row in ipairs(due) do
+        local ok = settleOffer(row.dealership_id, row.id, 'accept', 'system')
+        if not ok then claimOffer(row.id, row.dealership_id, 'pending', 'denied', 'system') end
+    end
+end
+
+local function autoAcceptLoop()
+    while true do
+        Wait(math.max(10, tonumber(Config.autoConfirmCheckSeconds) or 60) * 1000)
+        local ok, err = pcall(processDueOffers)
+        if not ok then print(('^1[qbdealership] auto-accept failed: %s^7'):format(tostring(err))) end
+    end
+end
+
+CreateThread(autoAcceptLoop)
+
+QB.callback.register('qbdealership:management:openOwnerManagement', openOwnerManagement)
+QB.callback.register('qbdealership:management:addEmployee', addEmployee)
+QB.callback.register('qbdealership:management:removeEmployee', removeEmployee)
+QB.callback.register('qbdealership:management:savePermissions', savePermissions)
+QB.callback.register('qbdealership:management:saveSettings', saveSettings)
+QB.callback.register('qbdealership:management:savePlacement', savePlacement)
+QB.callback.register('qbdealership:management:depositFunds', depositFunds)
+QB.callback.register('qbdealership:management:withdrawFunds', withdrawFunds)
+QB.callback.register('qbdealership:management:orderVehicle', orderVehicle)
+QB.callback.register('qbdealership:management:getOffers', getOffers)
+QB.callback.register('qbdealership:management:resolveOffer', resolveOffer)

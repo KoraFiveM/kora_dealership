@@ -90,7 +90,7 @@ local function vehicleCard(current, vehicle, categoryName, dealerType)
         },
     }
     if dealerType == 'owned' then
-        table.insert(card.actions, { id = 'offer:' .. vehicle.model, label = QB.lang('c.customer.buttons.offer'), icon = 'DollarSign', closeBeforeAction = true })
+        card.actions[#card.actions + 1] = { id = 'offer:' .. vehicle.model, label = QB.lang('c.customer.buttons.offer'), icon = 'DollarSign', closeBeforeAction = true }
     end
     return card
 end
@@ -266,7 +266,9 @@ local function runOfferFlow(vehicle)
     openOfferStep(OFFER_TERMS_APP_ID, 'terms', offerTermsNavigation(vehicle))
     if not offerInput.submitted then return end
 
-    QB.callback.trigger('qbdealership:makeOffer', vehicle.dealer, vehicle.index, vehicle.model, offerInput.amount, offerInput.terms)
+    local ok, err = QB.callback.trigger('qbdealership:makeOffer', vehicle.dealer, vehicle.index, vehicle.model, offerInput.amount, offerInput.terms)
+    if not ok then return fn.notify(err or QB.lang('c.customer.test.error')) end
+    fn.notify('Your offer was sent.', 'success')
 end
 
 local function startTestDrive(vehicle)
@@ -280,7 +282,7 @@ local function startTestDrive(vehicle)
 
         local testVehicle = fn.waitForNetworkVehicle(netId, 5000)
         if not testVehicle then
-            TriggerServerEvent('qbdealership:endTestDrive')
+            TriggerServerEvent('qbdealership:server:testDriveEnded')
             return fn.notify(QB.lang('c.customer.test.error'))
         end
 
@@ -288,15 +290,15 @@ local function startTestDrive(vehicle)
         Wait(1500)
         while DoesEntityExist(testVehicle) and GetVehiclePedIsIn(PlayerPedId(), false) == testVehicle do Wait(500) end
 
-        TriggerServerEvent('qbdealership:endTestDrive')
+        TriggerServerEvent('qbdealership:server:testDriveEnded')
         QB.visuals.fade(origin)
         SetEntityHeading(PlayerPedId(), originHeading)
     end)
 end
 
 local function purchaseVehicle(vehicle)
-    local netId = QB.callback.trigger('qbdealership:confirmPurchase', vehicle.dealer, vehicle.index, vehicle.model)
-    if not netId then return end
+    local netId, err = QB.callback.trigger('qbdealership:confirmPurchase', vehicle.dealer, vehicle.index, vehicle.model)
+    if not netId then return fn.notify(err or QB.lang('c.customer.test.error')) end
 
     local purchased = fn.waitForNetworkVehicle(netId, 5000)
     if purchased then TaskWarpPedIntoVehicle(PlayerPedId(), purchased, -1) end

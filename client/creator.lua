@@ -8,7 +8,7 @@ local vehicleCatalog = nil  -- { { value = model, label = name }, ... }, built o
 
 local function loadCatalog()
     if vehicleCatalog then return vehicleCatalog end
-    local shared = exports['qb-core']:GetShared('Vehicles') or {}
+    local shared = exports.qbcore:getShared('vehicles') or {}
     local list = {}
     for model, data in pairs(shared) do
         list[#list + 1] = { value = model, label = (type(data) == 'table' and data.name) or model }

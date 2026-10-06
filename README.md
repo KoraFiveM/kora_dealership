@@ -1,26 +1,30 @@
-# qbdealership (creator only)
+# qbdealership
 
-Everything except the dealership creator was removed: no showroom, no
-stock/offers, no purchase flow. This resource only builds and stores
-dealership definitions -- another resource reads `qbdealerships` to actually
-use them.
+Dealerships for QBCore: an admin creator, a customer showroom (display swaps, test drives,
+purchases, offers), a sales target for staff, and an owner management portal (employees,
+permissions, funds, stock orders, offers, display editing).
 
-Run `/dealershipcreator` (admin permission required) to open the AppShell:
+Run `/dealershipcreator` (ace `Config.adminPermission`, default `admin`) to open the creator.
 
-- **Dealerships** -- list existing ones, or create a new one by name.
-- **Data** -- name, Public vs For Sale (+ price), delete.
-- **Zone** -- `QB.zones.startCreator('poly')` to draw the dealership's
-  polygon; stored as `{points, thickness}`.
-- **Vehicles** -- search `exports['qb-core']:GetShared('Vehicles')` by name
-  and add to this dealership's list.
-- **Placements** -- pick one of the dealership's vehicles, then aim and
-  confirm with `QB.raycast.getCoords` to place a display model.
-- **Spawns** -- `QB.raycast.getCoords` with a fixed `asbo` preview; add as
-  many as you like.
+## Setup
 
-One table, `qbdealerships` (`sql/001_dealerships.sql`): label, type, price,
-and the zone/vehicles/placements/spawns each as a JSON column.
+1. Import `sql/dealers.sql` (creates `qbdealerships`, `qbdealership_management`,
+   `qbdealership_offers` and seeds a public `pdm` dealership; safe to re-run).
+2. Make sure the ace named in `Config.adminPermission` is granted to your admins, e.g.
+   `add_ace group.admin admin allow`.
+3. Dependencies: `qblib`, `qbsql`, `qbcore`, `qbvehiclekeys`, `qbtarget`.
 
-One correction from the original spec: qblib's actual parameter is
-`QB.raycast.getCoords({ type = 'object', object = modelName })` -- the key is
-`object`, not `model`. Checked straight against `modules/raycast/client.lua`.
+## Dealership types
+
+- **public**: everyone can buy, stock is unlimited.
+- **for_sale**: not yet owned.
+- **owned**: has an owner, employees, a balance, finite stock, sale/management zones and offers.
+
+## Tables
+
+- `qbdealerships`: label, type, price, owner and the zone/vehicles/placements/spawns/zones as JSON.
+- `qbdealership_management`: balance, income, spent, sales log, employees, permissions, settings.
+- `qbdealership_offers`: customer offers on owned dealerships; accepted, denied, or auto-accepted
+  after `Config.autoConfirmOffersDays`.
+
+Limits and tunables (caps, cooldowns, test drive length, distances) are in `config.lua`.

@@ -310,7 +310,7 @@ local refresh, fail = fn.appRefresher(APP_ID, buildNavigation)
 
 
 local function saveRecord(patch)
-    local result, err = QB.callback.trigger('qbdealership:management:save', dealerId, indexId, patch)
+    local result, err = QB.callback.trigger('qbdealership:management:savePlacement', dealerId, indexId, patch)
     if not result then return fail(err or QB.lang('c.management.saveError')) end
     record = result
     return refresh(fn.notice(QB.lang('c.management.save')))

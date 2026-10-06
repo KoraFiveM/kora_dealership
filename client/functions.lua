@@ -177,10 +177,10 @@ function fn.keepTargetZones(options)
 
     local function addZones(dealer, points)
         zoneIds[dealer] = {}
-        for _, point in ipairs(points) do
-            local ok, zoneId = pcall(addZone, dealer, point.coords, _)
+        for index, point in ipairs(points) do
+            local ok, zoneId = pcall(addZone, dealer, point.coords, index)
             if ok and zoneId then
-                table.insert(zoneIds[dealer], zoneId)
+                zoneIds[dealer][#zoneIds[dealer] + 1] = zoneId
             elseif not ok then
                 print(('[qbdealership] could not add a "%s" target: %s'):format(options.label, tostring(zoneId)))
             end

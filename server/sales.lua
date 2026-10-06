@@ -1,24 +1,29 @@
-
 local busy = {}
 
 local function authorizeSale(src, dealer, index)
-    local record = Dealerships[dealer]
+    local record = type(dealer) == 'string' and Dealerships[dealer]
     if not record or record.type ~= 'owned' then return nil, 'This dealership is not owned.' end
     if not fn.canEmployeeDo(src, dealer, 'sellVehicles') then return nil, 'You are not permitted to sell vehicles here.' end
-    if not QB.distance.player(src, record.saleZones[index].coords, Config.saleDistance) then return nil, 'You are too far from a sale point.' end
+
+    local near, err = fn.nearPoint(src, record, 'saleZones', index, Config.saleDistance)
+    if not near then return nil, err end
     return record
 end
 
-QB.callback.register('qbdealership:sales:open', function(src, dealer, index)
+local function isNearbyCustomer(src, customer)
+    local sellerPed, customerPed = GetPlayerPed(src), GetPlayerPed(customer)
+    if sellerPed == 0 or customerPed == 0 then return false end
+    return QB.distance.coords(GetEntityCoords(sellerPed), GetEntityCoords(customerPed), Config.nearbyCustomerDistance)
+end
+
+local function openSales(src, dealer, index)
     local record, err = authorizeSale(src, dealer, index)
     if not record then return fn.fail(err) end
 
-    local sellerCoords = GetEntityCoords(GetPlayerPed(src))
     local nearby = {}
     for _, playerId in ipairs(GetPlayers()) do
         local customer = tonumber(playerId)
-        local ped = GetPlayerPed(customer)
-        if ped ~= 0 and QB.distance.coords(sellerCoords, GetEntityCoords(ped), Config.nearbyCustomerDistance) then
+        if customer ~= src and isNearbyCustomer(src, customer) then
             nearby[#nearby + 1] = { source = customer, name = fn.playerName(customer) }
         end
     end
@@ -29,34 +34,42 @@ QB.callback.register('qbdealership:sales:open', function(src, dealer, index)
         maxPriceOverride = fn.management(dealer).settings.maxPriceOverride,
         nearby = nearby,
     }
-end)
+end
 
+local function priceWithinBounds(dealer, entry, price)
+    local minPrice, maxPrice = DealershipOrders.priceBounds(entry.price, fn.management(dealer).settings.maxPriceOverride)
+    local finalPrice = math.floor(tonumber(price) or -1)
+    if finalPrice < minPrice or finalPrice > maxPrice then
+        return nil, ('Price must be between $%d and $%d.'):format(minPrice, maxPrice)
+    end
+    return finalPrice
+end
 
-local function sell(src, dealer, index, customerSource, model, price)
-    local record, err = authorizeSale(src, dealer, index)
+-- request = { dealer, index, customer, model, price }
+local function sell(src, request)
+    local record, err = authorizeSale(src, request.dealer, request.index)
     if not record then return fn.fail(err) end
+    local dealer = request.dealer
 
-    local customer = tonumber(customerSource)
-    if not customer or GetPlayerPed(customer) == 0 then return fn.fail('That customer is not available.') end
+    local number = tonumber(request.customer)
+    local customer = number and math.tointeger(number)
+    if not customer or customer == src or not isNearbyCustomer(src, customer) then
+        return fn.fail('That customer is not available.')
+    end
 
-    model = type(model) == 'string' and model:lower()
-    local entry = model and fn.findVehicle(record, model)
+    local entry = fn.findVehicle(record, request.model)
     if not entry then return fn.fail('That vehicle is not sold here.') end
     if not fn.inStock(record, entry) then return fn.fail('That vehicle is out of stock.') end
 
     local spawn = fn.getFreeSpawn(record.spawns)
-    if not spawn then return fn.fail('This dealership has no spawn point.') end
+    if not spawn then return fn.fail('There is no free spawn point right now. Try again shortly.') end
 
-    local minPrice, maxPrice = DealershipOrders.priceBounds(entry.price, fn.management(dealer).settings.maxPriceOverride)
-    local finalPrice = math.floor(tonumber(price) or -1)
-    if not finalPrice or finalPrice < minPrice or finalPrice > maxPrice then
-        return fn.fail(('Price must be between $%d and $%d.'):format(minPrice, maxPrice))
-    end
-
+    local finalPrice, priceErr = priceWithinBounds(dealer, entry, request.price)
+    if not finalPrice then return fn.fail(priceErr) end
 
     local answer = QB.callback.trigger(customer, 'qbdealership:sales:confirmPurchase', {
         seller = fn.playerName(src),
-        vehicle = entry.name or model,
+        vehicle = entry.name,
         price = finalPrice,
     })
     if type(answer) ~= 'table' or not answer.confirmed then return fn.fail('The customer declined the sale.') end
@@ -64,32 +77,41 @@ local function sell(src, dealer, index, customerSource, model, price)
     local account = answer.payment == 'cash' and 'cash' or answer.payment == 'card' and 'bank'
     if not account then return fn.fail('The customer did not choose a payment method.') end
 
-    record = Dealerships[dealer]
-    entry = record and fn.findVehicle(record, model)
+    -- Everything may have changed while the customer was deciding.
+    record, err = authorizeSale(src, dealer, request.index)
+    if not record then return fn.fail(err) end
+    if not isNearbyCustomer(src, customer) then return fn.fail('That customer is no longer nearby.') end
+
+    entry = fn.findVehicle(record, request.model)
     if not entry or not fn.inStock(record, entry) then return fn.fail('That vehicle is no longer available.') end
+    finalPrice, priceErr = priceWithinBounds(dealer, entry, finalPrice)
+    if not finalPrice then return fn.fail(priceErr) end
 
     if not exports.qbcore:removeMoney(customer, account, finalPrice) then
         return fn.fail(('The customer does not have enough %s ($%d needed).'):format(account == 'cash' and 'cash' or 'money on their card', finalPrice))
     end
 
-    fn.adjustStock(dealer, model, -1)
-    local netId = fn.deliverVehicle(customer, model, spawn)
+    if not fn.adjustStock(dealer, entry.model, -1) then
+        exports.qbcore:addMoney(customer, account, finalPrice)
+        return fn.fail('That vehicle is no longer available.')
+    end
+
+    local netId = fn.deliverVehicle(customer, entry.model, spawn)
     if not netId then
-        fn.adjustStock(dealer, model, 1)
+        fn.adjustStock(dealer, entry.model, 1)
         exports.qbcore:addMoney(customer, account, finalPrice)
         return fn.fail('Could not spawn the vehicle. The customer was refunded.')
     end
 
     local recorded, commission = fn.recordSale(dealer, src, {
-        model = model,
-        vehicle = entry.name or model,
+        model = entry.model,
+        vehicle = entry.name,
         price = finalPrice,
         customer = fn.citizenId(customer),
         customerName = fn.playerName(customer),
     })
-
     if not recorded then
-        print(('[qbdealership] failed to record sale of %s at %s for $%d'):format(model, dealer, finalPrice))
+        print(('[qbdealership] failed to record sale of %s at %s for $%d'):format(entry.model, dealer, finalPrice))
     end
 
     return {
@@ -101,18 +123,26 @@ local function sell(src, dealer, index, customerSource, model, price)
     }
 end
 
-QB.callback.register('qbdealership:sales:confirm', function(src, ...)
-    if busy[src] then return fn.fail('Please wait.') end
+local function confirmSale(src, dealer, index, customer, model, price)
+    local lockedAt = busy[src]
+    if lockedAt and GetGameTimer() - lockedAt < Config.saleConfirmTimeout * 1000 then return fn.fail('Please wait.') end
 
-    busy[src] = true
-    local ok, result, message = pcall(sell, src, ...)
-    busy[src] = nil
+    local lock = GetGameTimer()
+    busy[src] = lock
+    local ok, result, message = pcall(sell, src, { dealer = dealer, index = index, customer = customer, model = model, price = price })
+    if busy[src] == lock then busy[src] = nil end
 
     if not ok then
         print(('[qbdealership] sale error for %s: %s'):format(src, tostring(result)))
         return fn.fail('Could not complete the sale.')
     end
     return result, message
-end)
+end
 
-AddEventHandler('playerDropped', function() busy[source] = nil end)
+local function onPlayerDropped()
+    busy[source] = nil
+end
+
+QB.callback.register('qbdealership:sales:open', openSales)
+QB.callback.register('qbdealership:sales:confirm', confirmSale)
+AddEventHandler('playerDropped', onPlayerDropped)

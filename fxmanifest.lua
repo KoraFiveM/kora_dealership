@@ -13,18 +13,18 @@ dependency 'qbcore'
 
 shared_scripts {
     '@qblib/init.lua',
-    '@qbsql/init.lua',
     '@qbcore/init.lua',
     'config.lua',
     'shared/functions.lua'
 }
 
 server_scripts {
+    '@qbsql/init.lua',
     'server/functions.lua',
     'server/creator.lua',
     'server/customer.lua',
     'server/sales.lua',
-    'server/Management.lua',
+    'server/management.lua',
 }
 
 client_scripts {
@@ -33,7 +33,7 @@ client_scripts {
     'client/creator.lua',
     'client/customer.lua',
     'client/sales.lua',
-    'client/Management.lua',
+    'client/management.lua',
 }
 
-files { 'sql/dealers.sql', 'locales/en.lua' }
+files { 'locales/en.lua' }
