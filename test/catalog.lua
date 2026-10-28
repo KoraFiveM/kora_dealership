@@ -1,6 +1,6 @@
 -- Run from qbdealership: lua5.4 test/catalog.lua
 local app, reads = nil, 0
-exports = { qbcore = { allShared = function(_, registry)
+exports = { kora_core = { allShared = function(_, registry)
     assert(registry == 'vehicles')
     reads = reads + 1
     return { { model = 'sultan', name = 'Sultan' }, { model = 'adder', name = 'Adder' }, { model = 'bison' } }

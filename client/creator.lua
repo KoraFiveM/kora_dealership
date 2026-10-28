@@ -8,7 +8,7 @@ local vehicleCatalog = nil  -- { { value = model, label = name }, ... }, built o
 
 local function loadCatalog()
     if vehicleCatalog then return vehicleCatalog end
-    local shared = exports.qbcore:allShared('vehicles') or {}
+    local shared = exports.kora_core:allShared('vehicles') or {}
     local list = {}
     for _, data in ipairs(shared) do
         local model = data.model

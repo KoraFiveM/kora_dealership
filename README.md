@@ -1,4 +1,4 @@
-# qbdealership
+# kora_dealership
 
 Dealerships for QBCore: an admin creator, a customer showroom (display swaps, test drives,
 purchases, offers), a sales target for staff, and an owner management portal (employees,
@@ -12,7 +12,7 @@ Run `/dealershipcreator` (ace `Config.adminPermission`, default `admin`) to open
    `qbdealership_offers` and seeds a public `pdm` dealership; safe to re-run).
 2. Make sure the ace named in `Config.adminPermission` is granted to your admins, e.g.
    `add_ace group.admin admin allow`.
-3. Dependencies: `qblib`, `qbsql`, `qbcore`, `qbvehiclekeys`, `qbtarget`.
+3. Dependencies: `kora_lib`, `kora_sql`, `kora_core`, `kora_vehiclekeys`, `kora_target`.
 
 ## Dealership types
 

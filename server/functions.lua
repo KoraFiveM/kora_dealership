@@ -140,14 +140,14 @@ AddEventHandler('playerDropped', clearCooldowns)
 AddEventHandler('playerDropped', clearCooldowns)
 
 function fn.citizenId(src)
-    local player = exports.qbcore:getPlayerData(src)
+    local player = exports.kora_core:getPlayerData(src)
     return player and player.citizenid
 end
 
 -- Accepts a server id (online) or an 8-character citizenid (online or offline).
 function fn.playerName(who)
     if type(who) == 'number' then
-        local player = exports.qbcore:getPlayerData(who)
+        local player = exports.kora_core:getPlayerData(who)
         local info = player and player.charinfo or {}
         local name = ('%s %s'):format(info.firstname or '', info.lastname or ''):match('^%s*(.-)%s*$')
         return name ~= '' and name or ('Player %d'):format(who)
@@ -175,7 +175,7 @@ function fn.takeCash(cid, amount)
     amount = tonumber(amount) or 0
     if amount <= 0 then return false end
 
-    local player = exports.qbcore:getPlayerByCitizenId(cid)
+    local player = exports.kora_core:getPlayerByCitizenId(cid)
     if player then return player.removeMoney(amount) end
 
     local result = QB.sql.query(
@@ -189,7 +189,7 @@ function fn.giveCash(cid, amount)
     amount = tonumber(amount) or 0
     if amount <= 0 then return false end
 
-    local player = exports.qbcore:getPlayerByCitizenId(cid)
+    local player = exports.kora_core:getPlayerByCitizenId(cid)
     if player then return player.addMoney(amount) end
 
     local result = QB.sql.query(
@@ -202,7 +202,7 @@ end
 -- Vehicles and stock
 
 local function sharedVehicle(model)
-    return exports.qbcore:getShared('vehicles', model)
+    return exports.kora_core:getShared('vehicles', model)
 end
 
 function fn.getVehicleData(model)
@@ -329,7 +329,7 @@ function fn.deliverVehicle(target, model, spawn)
         return nil
     end
 
-    exports.qbvehiclekeys:giveKeys(target, plate)
+    exports.kora_vehiclekeys:giveKeys(target, plate)
     TaskWarpPedIntoVehicle(GetPlayerPed(target), vehicle, -1)
     return netId
 end
@@ -464,7 +464,7 @@ function fn.recordSale(dealer, seller, sale)
     })
     if not updated then return false end
 
-    if commission > 0 then exports.qbcore:addMoney(seller, 'bank', commission) end
+    if commission > 0 then exports.kora_core:addMoney(seller, 'bank', commission) end
     return true, commission
 end
 

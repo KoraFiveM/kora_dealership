@@ -396,7 +396,7 @@ local function removeVehicle(dealer, index)
 end
 
 local function attachBrowseTarget(entity, dealer, index)
-    exports.qbtarget:addEntity(entity, {
+    exports.kora_target:addEntity(entity, {
         {
             icon = 'fas fa-car',
             label = QB.lang('c.customer.target'),

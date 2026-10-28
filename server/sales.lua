@@ -87,19 +87,19 @@ local function sell(src, request)
     finalPrice, priceErr = priceWithinBounds(dealer, entry, finalPrice)
     if not finalPrice then return fn.fail(priceErr) end
 
-    if not exports.qbcore:removeMoney(customer, account, finalPrice) then
+    if not exports.kora_core:removeMoney(customer, account, finalPrice) then
         return fn.fail(('The customer does not have enough %s ($%d needed).'):format(account == 'cash' and 'cash' or 'money on their card', finalPrice))
     end
 
     if not fn.adjustStock(dealer, entry.model, -1) then
-        exports.qbcore:addMoney(customer, account, finalPrice)
+        exports.kora_core:addMoney(customer, account, finalPrice)
         return fn.fail('That vehicle is no longer available.')
     end
 
     local netId = fn.deliverVehicle(customer, entry.model, spawn)
     if not netId then
         fn.adjustStock(dealer, entry.model, 1)
-        exports.qbcore:addMoney(customer, account, finalPrice)
+        exports.kora_core:addMoney(customer, account, finalPrice)
         return fn.fail('Could not spawn the vehicle. The customer was refunded.')
     end
 

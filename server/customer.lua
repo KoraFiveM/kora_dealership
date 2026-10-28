@@ -51,7 +51,7 @@ local function testDrive(src, dealer, index, model)
 
     local plate = ('TD%06d'):format(src)
     SetVehicleNumberPlateText(vehicle, plate)
-    exports.qbvehiclekeys:giveKeys(src, plate)
+    exports.kora_vehiclekeys:giveKeys(src, plate)
     TaskWarpPedIntoVehicle(GetPlayerPed(src), vehicle, -1)
 
     local function expire() expireTestDrive(src, data) end
@@ -94,12 +94,12 @@ local function confirmPurchase(src, dealer, index, model)
     if not spawn then return fn.fail('There is no free spawn point right now. Try again shortly.') end
 
     local price = priceFor(src, dealer, record, entry)
-    if not exports.qbcore:removeMoney(src, 'bank', price) then return fn.fail('Not enough money in your bank account.') end
+    if not exports.kora_core:removeMoney(src, 'bank', price) then return fn.fail('Not enough money in your bank account.') end
 
     local function refund(restoreStock, reverseCredit)
         if reverseCredit then fn.creditSale(dealer, -price) end
         if restoreStock then fn.adjustStock(dealer, entry.model, 1) end
-        exports.qbcore:addMoney(src, 'bank', price)
+        exports.kora_core:addMoney(src, 'bank', price)
     end
 
     if not fn.adjustStock(dealer, entry.model, -1) then

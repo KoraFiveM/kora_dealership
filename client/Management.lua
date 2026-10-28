@@ -442,7 +442,7 @@ local function saveAimedRecord(patch)
 end
 
 local function permissionSet(permissionsByEmployee)
-    local data = exports.qbcore:getPlayerData()
+    local data = exports.kora_core:getPlayerData()
     local set = {}
     for _, permission in ipairs(permissionsByEmployee[data.citizenid] or {}) do set[permission] = true end
     return set

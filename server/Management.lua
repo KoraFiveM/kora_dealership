@@ -253,11 +253,11 @@ local function depositFunds(src, dealer, index, amount)
         return fn.fail('That would exceed the maximum dealership balance.')
     end
 
-    if not exports.qbcore:removeMoney(src, 'bank', amount) then return fn.fail('Not enough money in your bank account.') end
+    if not exports.kora_core:removeMoney(src, 'bank', amount) then return fn.fail('Not enough money in your bank account.') end
 
     local data = fn.management(dealer)
     if not fn.updateManagement(dealer, { balance = data.balance + amount }) then
-        exports.qbcore:addMoney(src, 'bank', amount)
+        exports.kora_core:addMoney(src, 'bank', amount)
         return fn.fail('Could not save the deposit. You were refunded.')
     end
     return { balance = data.balance + amount }
@@ -277,7 +277,7 @@ local function withdrawFunds(src, dealer, index, amount)
     local balance = data.balance - amount
     if not fn.updateManagement(dealer, { balance = balance }) then return fn.fail('Could not save the withdrawal.') end
 
-    exports.qbcore:addMoney(src, 'bank', amount)
+    exports.kora_core:addMoney(src, 'bank', amount)
     return { balance = balance }
 end
 

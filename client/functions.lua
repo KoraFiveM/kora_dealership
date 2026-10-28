@@ -14,7 +14,7 @@ function fn.notice(message, tone)
 end
 
 local function playerCitizenId()
-    local data = exports.qbcore:getPlayerData()
+    local data = exports.kora_core:getPlayerData()
     return data and data.citizenid
 end
 
@@ -155,13 +155,13 @@ function fn.keepTargetZones(options)
 
     local function removeZones(dealer)
         for _, zoneId in ipairs(zoneIds[dealer] or {}) do
-            pcall(function() exports.qbtarget:removeZone(zoneId) end)
+            pcall(function() exports.kora_target:removeZone(zoneId) end)
         end
         zoneIds[dealer], signatures[dealer] = nil, nil
     end
 
     local function addZone(dealer, coords, index)
-        return exports.qbtarget:addSphereZone({
+        return exports.kora_target:addSphereZone({
             coords = vector3(coords.x, coords.y, coords.z),
             radius = options.radius,
             options = {
@@ -218,7 +218,7 @@ function fn.keepTargetZones(options)
 end
 
 function fn.getVehicleImage(vehicle)
-    local vehData = exports.qbcore:getShared('vehicles', vehicle)
+    local vehData = exports.kora_core:getShared('vehicles', vehicle)
     if not vehData then return nil end
     return vehData.image or ('https://docs-backend.fivem.net/vehicles/%s.webp'):format(vehicle)
 end
