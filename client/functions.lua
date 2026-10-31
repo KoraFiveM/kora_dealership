@@ -6,7 +6,7 @@ function fn.waitForDealerships()
 end
 
 function fn.notify(message, tone)
-    QB.notify.send({ title = 'Dealership', message = message, type = tone or 'error' })
+    Kora.notify.send({ title = 'Dealership', message = message, type = tone or 'error' })
 end
 
 function fn.notice(message, tone)
@@ -88,7 +88,7 @@ end
 function fn.appRefresher(appId, buildNavigation)
     local function refresh(notice)
         local navigation = buildNavigation()
-        QB.nui.updateApp(appId, { navigation = navigation })
+        Kora.nui.updateApp(appId, { navigation = navigation })
         return { update = { navigation = navigation }, notice = notice }
     end
 
@@ -126,7 +126,7 @@ function fn.aimToolFor(actionId, values)
 end
 
 function fn.runAimTool(tool, record, save)
-    local aimed = QB.raycast.getCoords(tool.object and { type = 'object', object = tool.object } or {})
+    local aimed = Kora.raycast.getCoords(tool.object and { type = 'object', object = tool.object } or {})
     if not aimed then return end
     save({ [tool.field] = fn.appended(record[tool.field], { model = tool.model, coords = aimed.coords }) })
 end

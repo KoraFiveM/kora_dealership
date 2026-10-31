@@ -20,31 +20,31 @@ local function loadCatalog()
 end
 
 local function dealershipsView()
-    local list = QB.callback.trigger('qbdealership:list') or {}
+    local list = Kora.callback.trigger('qbdealership:list') or {}
     local items = {}
     for _, entry in ipairs(list) do
         items[#items + 1] = {
             id = entry.id,
             label = entry.label,
-            description = entry.type == 'for_sale' and QB.lang('c.creator.for_sale', entry.price or 0)
-                or entry.type == 'owned' and QB.lang('c.creator.owned', entry.owner or 'unclaimed')
-                or QB.lang('c.creator.public'),
+            description = entry.type == 'for_sale' and Kora.lang('c.creator.for_sale', entry.price or 0)
+                or entry.type == 'owned' and Kora.lang('c.creator.owned', entry.owner or 'unclaimed')
+                or Kora.lang('c.creator.public'),
             icon = 'Warehouse',
             action = 'select:' .. entry.id,
         }
     end
 
     return {
-        id = 'dealerships', label = QB.lang('c.creator.dealerLabel'), icon = 'Warehouse',
+        id = 'dealerships', label = Kora.lang('c.creator.dealerLabel'), icon = 'Warehouse',
         content = {
-            title = QB.lang('c.creator.dealerLabel'),
-            description = QB.lang('c.creator.dealerDesc'),
+            title = Kora.lang('c.creator.dealerLabel'),
+            description = Kora.lang('c.creator.dealerDesc'),
             blocks = {
                 { type = 'list', id = 'dealership-list', items = items, empty = 'No dealerships yet.' },
                 {
-                    type = 'form', id = 'create', title = QB.lang('c.creator.createDealership'),
-                    fields = { { id = 'label', label = QB.lang('c.creator.dealerName'), type = 'text', required = true } },
-                    action = { id = 'create', label = QB.lang('c.creator.create') },
+                    type = 'form', id = 'create', title = Kora.lang('c.creator.createDealership'),
+                    fields = { { id = 'label', label = Kora.lang('c.creator.dealerName'), type = 'text', required = true } },
+                    action = { id = 'create', label = Kora.lang('c.creator.create') },
                 },
             },
         },
@@ -53,37 +53,37 @@ end
 
 local function dataView()
     return {
-        id = 'data', label = QB.lang('c.creator.data.header'), icon = 'Settings',
+        id = 'data', label = Kora.lang('c.creator.data.header'), icon = 'Settings',
         content = {
-            title = selected.label, description = QB.lang('c.creator.data.description'),
+            title = selected.label, description = Kora.lang('c.creator.data.description'),
             blocks = {
                 {
-                    type = 'form', id = 'data', title = QB.lang('c.creator.data.header'),
+                    type = 'form', id = 'data', title = Kora.lang('c.creator.data.header'),
                     fields = {
-                        { id = 'label', label = QB.lang('c.creator.data.form.name'), type = 'text', default = selected.label, required = true },
+                        { id = 'label', label = Kora.lang('c.creator.data.form.name'), type = 'text', default = selected.label, required = true },
                         {
-                            id = 'type', label = QB.lang('c.creator.data.form.access'), type = 'select', default = selected.type,
+                            id = 'type', label = Kora.lang('c.creator.data.form.access'), type = 'select', default = selected.type,
                             options = {
-                                { value = 'public', label = QB.lang('c.creator.data.form.public') },
-                                { value = 'for_sale', label = QB.lang('c.creator.data.form.for_sale') },
-                                { value = 'owned', label = QB.lang('c.creator.data.form.owned') },
+                                { value = 'public', label = Kora.lang('c.creator.data.form.public') },
+                                { value = 'for_sale', label = Kora.lang('c.creator.data.form.for_sale') },
+                                { value = 'owned', label = Kora.lang('c.creator.data.form.owned') },
                             },
                         },
                         {
-                            id = 'price', label = QB.lang('c.creator.data.form.price'), type = 'number',
+                            id = 'price', label = Kora.lang('c.creator.data.form.price'), type = 'number',
                             default = selected.price and tonumber(selected.price) or 1,
                         },
                         {
-                            id = 'owner', label = QB.lang('c.creator.data.form.owner'), type = 'text',
+                            id = 'owner', label = Kora.lang('c.creator.data.form.owner'), type = 'text',
                             default = selected.owner or '',
-                            description = QB.lang('c.creator.data.form.ownerDesc'),
+                            description = Kora.lang('c.creator.data.form.ownerDesc'),
                         },
                     },
-                    action = { id = 'data:save', label = QB.lang('c.creator.data.form.save') },
+                    action = { id = 'data:save', label = Kora.lang('c.creator.data.form.save') },
                 },
                 {
-                    type = 'actions', title = QB.lang('c.creator.data.delete.danger'),
-                    actions = { { id = 'delete', label = QB.lang('c.creator.data.delete.delete'), variant = 'destructive' } },
+                    type = 'actions', title = Kora.lang('c.creator.data.delete.danger'),
+                    actions = { { id = 'delete', label = Kora.lang('c.creator.data.delete.delete'), variant = 'destructive' } },
                 },
             },
         },
@@ -93,22 +93,22 @@ end
 local function zoneView()
     local zone = selected.zone
     return {
-        id = 'zone', label = QB.lang('c.creator.zone.header'), icon = 'MapPin',
+        id = 'zone', label = Kora.lang('c.creator.zone.header'), icon = 'MapPin',
         content = {
-            title = QB.lang('c.creator.zone.header'), description = QB.lang('c.creator.zone.description'),
+            title = Kora.lang('c.creator.zone.header'), description = Kora.lang('c.creator.zone.description'),
             blocks = {
                 {
                     type = 'stats',
                     items = {
-                        { label = QB.lang('c.creator.zone.stats.points'), value = zone and #zone.points or 0, icon = 'MapPin' },
-                        { label = QB.lang('c.creator.zone.stats.thickness'), value = zone and ('%.1fm'):format(zone.thickness) or '—', icon = 'Ruler' },
+                        { label = Kora.lang('c.creator.zone.stats.points'), value = zone and #zone.points or 0, icon = 'MapPin' },
+                        { label = Kora.lang('c.creator.zone.stats.thickness'), value = zone and ('%.1fm'):format(zone.thickness) or '—', icon = 'Ruler' },
                     },
                 },
                 {
-                    type = 'actions', title = QB.lang('c.creator.zone.actions.draw'),
+                    type = 'actions', title = Kora.lang('c.creator.zone.actions.draw'),
                     actions = {
-                        { id = 'zone:create', label = zone and QB.lang('c.creator.zone.actions.redraw') or QB.lang('c.creator.zone.actions.draw'), variant = 'primary' },
-                        { id = 'zone:clear', label = QB.lang('c.creator.zone.actions.clear'), variant = 'outline', disabled = zone == nil },
+                        { id = 'zone:create', label = zone and Kora.lang('c.creator.zone.actions.redraw') or Kora.lang('c.creator.zone.actions.draw'), variant = 'primary' },
+                        { id = 'zone:clear', label = Kora.lang('c.creator.zone.actions.clear'), variant = 'outline', disabled = zone == nil },
                     },
                 },
             },
@@ -122,7 +122,7 @@ local function vehiclesView()
         items[#items + 1] = {
             id = vehicle.model,
             label = fn.vehicleName(vehicle),
-            description = QB.lang('s.price', tonumber(vehicle.price) or 1),
+            description = Kora.lang('s.price', tonumber(vehicle.price) or 1),
             icon = 'Car',
             action = 'vehicles:edit:' .. vehicle.model,
             image = fn.getVehicleImage(vehicle.model),
@@ -130,18 +130,18 @@ local function vehiclesView()
     end
 
     return {
-        id = 'vehicles', label = QB.lang('c.creator.vehicles.header'), icon = 'Car',
+        id = 'vehicles', label = Kora.lang('c.creator.vehicles.header'), icon = 'Car',
         content = {
-            title = QB.lang('c.creator.vehicles.header'),
-            description = QB.lang('c.creator.vehicles.description'),
+            title = Kora.lang('c.creator.vehicles.header'),
+            description = Kora.lang('c.creator.vehicles.description'),
             blocks = {
                 {
-                    type = 'form', id = 'vehicle-add', title = QB.lang('c.creator.vehicles.form.add'),
-                    fields = { { id = 'model', label = QB.lang('c.creator.vehicles.form.veh'), type = 'select', options = loadCatalog(), required = true } },
-                    action = { id = 'vehicles:add', label = QB.lang('c.creator.vehicles.form.add') },
+                    type = 'form', id = 'vehicle-add', title = Kora.lang('c.creator.vehicles.form.add'),
+                    fields = { { id = 'model', label = Kora.lang('c.creator.vehicles.form.veh'), type = 'select', options = loadCatalog(), required = true } },
+                    action = { id = 'vehicles:add', label = Kora.lang('c.creator.vehicles.form.add') },
                 },
                 
-                { type = 'list', id = 'vehicle-list', title = QB.lang('c.creator.vehicles.form.current', #items), layout = 'cards',  items = items, empty = QB.lang('c.creator.vehicles.form.empty') },
+                { type = 'list', id = 'vehicle-list', title = Kora.lang('c.creator.vehicles.form.current', #items), layout = 'cards',  items = items, empty = Kora.lang('c.creator.vehicles.form.empty') },
             },
         },
     }
@@ -165,47 +165,47 @@ local refresh, fail = fn.appRefresher(APP_ID, buildNavigation)
 
 
 local function saveSelected(patch)
-    local result, err = QB.callback.trigger('qbdealership:save', selected.id, patch)
-    if not result then return fail(err or QB.lang('c.creator.failed')) end
+    local result, err = Kora.callback.trigger('qbdealership:save', selected.id, patch)
+    if not result then return fail(err or Kora.lang('c.creator.failed')) end
     selected = result
     return refresh(fn.notice('Saved.'))
 end
 
 local function createDealership(label)
-    local record, err = QB.callback.trigger('qbdealership:create', label)
-    if not record then return fail(err or QB.lang('c.creator.failed')) end
+    local record, err = Kora.callback.trigger('qbdealership:create', label)
+    if not record then return fail(err or Kora.lang('c.creator.failed')) end
     selected, currentView = record, 'data'
-    return refresh(fn.notice(QB.lang('c.creator.save')))
+    return refresh(fn.notice(Kora.lang('c.creator.save')))
 end
 
 local function selectDealership(id)
-    local record, err = QB.callback.trigger('qbdealership:get', id)
-    if not record then return fail(err or QB.lang('c.creator.failed')) end
+    local record, err = Kora.callback.trigger('qbdealership:get', id)
+    if not record then return fail(err or Kora.lang('c.creator.failed')) end
     selected, currentView = record, 'data'
     return refresh()
 end
 
 local function deleteSelected()
-    local confirmation = QB.nui.openAlert({
-        title = QB.lang('c.creator.delete.title'), message = QB.lang('c.creator.delete.message'),
-        confirmLabel = QB.lang('c.creator.delete.confirm'),
+    local confirmation = Kora.nui.openAlert({
+        title = Kora.lang('c.creator.delete.title'), message = Kora.lang('c.creator.delete.message'),
+        confirmLabel = Kora.lang('c.creator.delete.confirm'),
     })
     if not confirmation or not confirmation.confirmed then return refresh() end
 
-    local ok, err = QB.callback.trigger('qbdealership:delete', selected.id)
-    if not ok then return fail(err or QB.lang('c.creator.delete.fail')) end
+    local ok, err = Kora.callback.trigger('qbdealership:delete', selected.id)
+    if not ok then return fail(err or Kora.lang('c.creator.delete.fail')) end
     selected, currentView = nil, 'dealerships'
-    return refresh(fn.notice(QB.lang('c.creator.delete.pass')))
+    return refresh(fn.notice(Kora.lang('c.creator.delete.pass')))
 end
 
 local function addVehicle(model)
-    if not model then return fail(QB.lang('c.creator.vehicles.add.vehReq')) end
-    if fn.findVehicle(selected.vehicles, model) then return fail(QB.lang('c.creator.vehicles.add.vehExists')) end
+    if not model then return fail(Kora.lang('c.creator.vehicles.add.vehReq')) end
+    if fn.findVehicle(selected.vehicles, model) then return fail(Kora.lang('c.creator.vehicles.add.vehExists')) end
     return saveSelected({ vehicles = fn.appended(selected.vehicles, { model = model }) })
 end
 
 local function setVehiclePrice(model, price)
-    if not model or not price then return fail(QB.lang('c.creator.vehicles.price.vehPrice')) end
+    if not model or not price then return fail(Kora.lang('c.creator.vehicles.price.vehPrice')) end
 
     local vehicles = {}
     for _, vehicle in ipairs(selected.vehicles) do
@@ -263,7 +263,7 @@ local function onAction(actionId, context)
     return refresh()
 end
 
-QB.nui.registerApp({
+Kora.nui.registerApp({
     id = APP_ID,
     title = 'Dealership Creator',
     icon = 'Warehouse',
@@ -280,7 +280,7 @@ local function runPendingTool()
     pendingTool = nil
 
     if tool.kind == 'zone' then
-        local result = QB.zones.startCreator('poly')
+        local result = Kora.zones.startCreator('poly')
         if result then saveSelected({ zone = result.opts }) end
     else
         fn.runAimTool(tool, selected, saveSelected)
@@ -289,8 +289,8 @@ end
 
 local function open()
     while true do
-        QB.nui.updateApp(APP_ID, { navigation = buildNavigation() })
-        QB.nui.openApp(APP_ID, { viewId = currentView })
+        Kora.nui.updateApp(APP_ID, { navigation = buildNavigation() })
+        Kora.nui.openApp(APP_ID, { viewId = currentView })
         if not pendingTool then break end
         runPendingTool()
     end

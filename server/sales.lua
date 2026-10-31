@@ -13,7 +13,7 @@ end
 local function isNearbyCustomer(src, customer)
     local sellerPed, customerPed = GetPlayerPed(src), GetPlayerPed(customer)
     if sellerPed == 0 or customerPed == 0 then return false end
-    return QB.distance.coords(GetEntityCoords(sellerPed), GetEntityCoords(customerPed), Config.nearbyCustomerDistance)
+    return Kora.distance.coords(GetEntityCoords(sellerPed), GetEntityCoords(customerPed), Config.nearbyCustomerDistance)
 end
 
 local function openSales(src, dealer, index)
@@ -67,7 +67,7 @@ local function sell(src, request)
     local finalPrice, priceErr = priceWithinBounds(dealer, entry, request.price)
     if not finalPrice then return fn.fail(priceErr) end
 
-    local answer = QB.callback.trigger(customer, 'qbdealership:sales:confirmPurchase', {
+    local answer = Kora.callback.trigger(customer, 'qbdealership:sales:confirmPurchase', {
         seller = fn.playerName(src),
         vehicle = entry.name,
         price = finalPrice,
@@ -143,6 +143,6 @@ local function onPlayerDropped()
     busy[source] = nil
 end
 
-QB.callback.register('qbdealership:sales:open', openSales)
-QB.callback.register('qbdealership:sales:confirm', confirmSale)
+Kora.callback.register('qbdealership:sales:open', openSales)
+Kora.callback.register('qbdealership:sales:confirm', confirmSale)
 AddEventHandler('playerDropped', onPlayerDropped)

@@ -1,10 +1,10 @@
 
 local function deleteAction(id)
-    return { id = id, label = QB.lang('s.delete'), icon = 'Trash2', variant = 'destructive' }
+    return { id = id, label = Kora.lang('s.delete'), icon = 'Trash2', variant = 'destructive' }
 end
 
 local function coordsLabel(coords)
-    return QB.lang('s.coords'):format(coords.x, coords.y, coords.z)
+    return Kora.lang('s.coords'):format(coords.x, coords.y, coords.z)
 end
 
 local function placementsView(record)
@@ -22,19 +22,19 @@ local function placementsView(record)
     local blocks = {}
     if #vehicleOptions > 0 then
         blocks[#blocks + 1] = {
-            type = 'form', id = 'place', title = QB.lang('c.creator.placement.form.place'),
-            description = QB.lang('c.creator.placement.form.description'),
-            fields = { { id = 'model', label = QB.lang('c.creator.placement.form.veh'), type = 'select', options = vehicleOptions, required = true } },
-            action = { id = 'placements:add', label = QB.lang('c.creator.placement.form.place') },
+            type = 'form', id = 'place', title = Kora.lang('c.creator.placement.form.place'),
+            description = Kora.lang('c.creator.placement.form.description'),
+            fields = { { id = 'model', label = Kora.lang('c.creator.placement.form.veh'), type = 'select', options = vehicleOptions, required = true } },
+            action = { id = 'placements:add', label = Kora.lang('c.creator.placement.form.place') },
         }
     else
-        blocks[#blocks + 1] = { type = 'empty', title = QB.lang('c.creator.placement.empty') }
+        blocks[#blocks + 1] = { type = 'empty', title = Kora.lang('c.creator.placement.empty') }
     end
-    blocks[#blocks + 1] = { type = 'list', id = 'placement-list', layout = 'cards', title = QB.lang('c.creator.placement.listTitle'), items = items, empty = QB.lang('c.creator.placement.emptyList') }
+    blocks[#blocks + 1] = { type = 'list', id = 'placement-list', layout = 'cards', title = Kora.lang('c.creator.placement.listTitle'), items = items, empty = Kora.lang('c.creator.placement.emptyList') }
 
     return {
-        id = 'placements', label = QB.lang('c.creator.placement.header'), icon = 'MapPin',
-        content = { title = QB.lang('c.creator.placement.header'), description = QB.lang('c.creator.placement.description'), blocks = blocks },
+        id = 'placements', label = Kora.lang('c.creator.placement.header'), icon = 'MapPin',
+        content = { title = Kora.lang('c.creator.placement.header'), description = Kora.lang('c.creator.placement.description'), blocks = blocks },
     }
 end
 
@@ -49,12 +49,12 @@ local function spawnsView(record)
     end
 
     return {
-        id = 'spawns', label = QB.lang('c.creator.spawns.header'), icon = 'MapPin',
+        id = 'spawns', label = Kora.lang('c.creator.spawns.header'), icon = 'MapPin',
         content = {
-            title = QB.lang('c.creator.spawns.header'), description = QB.lang('c.creator.spawns.description'),
+            title = Kora.lang('c.creator.spawns.header'), description = Kora.lang('c.creator.spawns.description'),
             blocks = {
-                { type = 'actions', actions = { { id = 'spawns:add', label = QB.lang('c.creator.spawns.form.add'), variant = 'primary' } } },
-                { type = 'list', id = 'spawn-list', layout = 'cards', title = QB.lang('c.creator.spawns.listTitle'), items = items, empty = QB.lang('c.creator.spawns.empty') },
+                { type = 'actions', actions = { { id = 'spawns:add', label = Kora.lang('c.creator.spawns.form.add'), variant = 'primary' } } },
+                { type = 'list', id = 'spawn-list', layout = 'cards', title = Kora.lang('c.creator.spawns.listTitle'), items = items, empty = Kora.lang('c.creator.spawns.empty') },
             },
         },
     }
@@ -85,15 +85,15 @@ local function pointZonesView(spec, record, keepLast)
 end
 
 local managementSpec = {
-    id = 'management', field = 'managementZones', noun = QB.lang('c.creator.management.header'), label = QB.lang('c.creator.management.header'), icon = 'Briefcase',
-    title = QB.lang('c.creator.management.header'), description = QB.lang('c.creator.management.description'),
-    addLabel = QB.lang('c.creator.management.addLabel'), listTitle = QB.lang('c.creator.management.listTitle'), empty = QB.lang('c.creator.management.empty'),
+    id = 'management', field = 'managementZones', noun = Kora.lang('c.creator.management.header'), label = Kora.lang('c.creator.management.header'), icon = 'Briefcase',
+    title = Kora.lang('c.creator.management.header'), description = Kora.lang('c.creator.management.description'),
+    addLabel = Kora.lang('c.creator.management.addLabel'), listTitle = Kora.lang('c.creator.management.listTitle'), empty = Kora.lang('c.creator.management.empty'),
 }
 
 local saleSpec = {
-    id = 'sales', field = 'saleZones', noun = QB.lang('c.creator.sales.header'), label = QB.lang('c.creator.sales.header'), icon = 'Tag',
-    title = QB.lang('c.creator.sales.header'), description = QB.lang('c.creator.sales.description'),
-    addLabel = QB.lang('c.creator.sales.addLabel'), listTitle = QB.lang('c.creator.sales.listTitle'), empty = QB.lang('c.creator.sales.empty'),
+    id = 'sales', field = 'saleZones', noun = Kora.lang('c.creator.sales.header'), label = Kora.lang('c.creator.sales.header'), icon = 'Tag',
+    title = Kora.lang('c.creator.sales.header'), description = Kora.lang('c.creator.sales.description'),
+    addLabel = Kora.lang('c.creator.sales.addLabel'), listTitle = Kora.lang('c.creator.sales.listTitle'), empty = Kora.lang('c.creator.sales.empty'),
 }
 
 DealershipViews = {

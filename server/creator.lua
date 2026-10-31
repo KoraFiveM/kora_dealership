@@ -19,7 +19,7 @@ local function adminOnly(src)
     return fn.fail('Admin permission required.')
 end
 
-QB.callback.register('qbdealership:list', function(src)
+Kora.callback.register('qbdealership:list', function(src)
     local allowed, err = adminOnly(src)
     if not allowed then return false, err end
 
@@ -31,7 +31,7 @@ QB.callback.register('qbdealership:list', function(src)
     return list
 end)
 
-QB.callback.register('qbdealership:get', function(src, id)
+Kora.callback.register('qbdealership:get', function(src, id)
     local allowed, err = adminOnly(src)
     if not allowed then return false, err end
 
@@ -40,7 +40,7 @@ QB.callback.register('qbdealership:get', function(src, id)
     return record
 end)
 
-QB.callback.register('qbdealership:create', function(src, label)
+Kora.callback.register('qbdealership:create', function(src, label)
     local allowed, err = adminOnly(src)
     if not allowed then return false, err end
 
@@ -61,26 +61,26 @@ QB.callback.register('qbdealership:create', function(src, label)
     return record
 end)
 
-QB.callback.register('qbdealership:delete', function(src, id)
+Kora.callback.register('qbdealership:delete', function(src, id)
     local allowed, err = adminOnly(src)
     if not allowed then return false, err end
     if type(id) ~= 'string' or not Dealerships[id] then return fn.fail('Unknown dealership.') end
 
-    local ok, deleteErr = QB.sql.update('DELETE FROM `qbdealerships` WHERE `id` = ?', { id })
+    local ok, deleteErr = Kora.sql.update('DELETE FROM `qbdealerships` WHERE `id` = ?', { id })
     if not ok then return false, deleteErr or 'Failed to delete dealership.' end
 
     fn.forgetDealership(id)
     return true
 end)
 
-QB.callback.register('qbdealership:save', function(src, id, patch)
+Kora.callback.register('qbdealership:save', function(src, id, patch)
     local allowed, err = adminOnly(src)
     if not allowed then return false, err end
     if type(id) ~= 'string' then return fn.fail('Unknown dealership.') end
     return fn.patchDealership(id, patch)
 end)
 
-QB.callback.register('qbdealership:swap', function(src, dealerId, index, model)
+Kora.callback.register('qbdealership:swap', function(src, dealerId, index, model)
     local record = type(dealerId) == 'string' and Dealerships[dealerId]
     if not record then return fn.fail('Unknown dealership.') end
 

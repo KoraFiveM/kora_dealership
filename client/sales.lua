@@ -45,16 +45,16 @@ local function sellForm(vehicleOptions, customers)
     end
 
     return {
-        type = 'form', id = 'sell', title = QB.lang('c.sales.header'),
-        description = entry and QB.lang('c.sales.allowedPriceRange'):format(minPrice, maxPrice) or nil,
+        type = 'form', id = 'sell', title = Kora.lang('c.sales.header'),
+        description = entry and Kora.lang('c.sales.allowedPriceRange'):format(minPrice, maxPrice) or nil,
         fields = {
-            { id = 'customer', label = QB.lang('c.sales.customer'), type = 'select', options = customers, required = true },
-            { id = 'model', label = QB.lang('c.sales.vehicle'), type = 'select', options = vehicleOptions, default = model, required = true,
-                searchable = true, placeholder = QB.lang('c.sales.searchPlaceholder') },
-            { id = 'price', label = QB.lang('c.sales.price'), type = 'range', min = minPrice, max = maxPrice, step = 1,
+            { id = 'customer', label = Kora.lang('c.sales.customer'), type = 'select', options = customers, required = true },
+            { id = 'model', label = Kora.lang('c.sales.vehicle'), type = 'select', options = vehicleOptions, default = model, required = true,
+                searchable = true, placeholder = Kora.lang('c.sales.searchPlaceholder') },
+            { id = 'price', label = Kora.lang('c.sales.price'), type = 'range', min = minPrice, max = maxPrice, step = 1,
                 default = entry and fn.toInt(entry.price) or minPrice, required = true },
         },
-        action = { id = 'sell:confirm', label = QB.lang('c.sales.offerToCustomer'), confirm = QB.lang('c.sales.confirmOffer') },
+        action = { id = 'sell:confirm', label = Kora.lang('c.sales.offerToCustomer'), confirm = Kora.lang('c.sales.confirmOffer') },
     }
 end
 
@@ -63,16 +63,16 @@ local function sellView()
 
     local block
     if #vehicleOptions == 0 then
-        block = { type = 'empty', title = QB.lang('c.sales.emptyVeh') }
+        block = { type = 'empty', title = Kora.lang('c.sales.emptyVeh') }
     elseif #customers == 0 then
-        block = { type = 'empty', title = QB.lang('c.sales.emptyCustomer') }
+        block = { type = 'empty', title = Kora.lang('c.sales.emptyCustomer') }
     else
         block = sellForm(vehicleOptions, customers)
     end
 
     return {
-        id = 'sell', label = QB.lang('c.sales.header'), icon = 'Car',
-        content = { title = QB.lang('c.sales.header'), description = QB.lang('c.sales.description'), blocks = { block } },
+        id = 'sell', label = Kora.lang('c.sales.header'), icon = 'Car',
+        content = { title = Kora.lang('c.sales.header'), description = Kora.lang('c.sales.description'), blocks = { block } },
     }
 end
 
@@ -87,8 +87,8 @@ local function onAction(actionId, actionContext)
     local values = actionContext and actionContext.value or {}
 
     if actionId == 'sell:confirm' then
-        local sale, err = QB.callback.trigger('qbdealership:sales:confirm', dealerId, indexId, values.customer, values.model, values.price)
-        if not sale then return fail(err or QB.lang('c.sales.noComplete')) end
+        local sale, err = Kora.callback.trigger('qbdealership:sales:confirm', dealerId, indexId, values.customer, values.model, values.price)
+        if not sale then return fail(err or Kora.lang('c.sales.noComplete')) end
 
         fn.notify(('Sold to %s for $%d.'):format(sale.customer, sale.amount), 'success')
         return { close = true }
@@ -107,20 +107,20 @@ local function onChange(actionId, changeContext)
     end
 end
 
-QB.callback.register('qbdealership:sales:confirmPurchase', function(details)
+Kora.callback.register('qbdealership:sales:confirmPurchase', function(details)
     details = type(details) == 'table' and details or {}
-    local answer = QB.nui.openInputDialog({
+    local answer = Kora.nui.openInputDialog({
         { id = 'payment', label = 'Pay with', type = 'select', options = Config.paymentMethods, required = true },
-    }, QB.lang('c.sales.buy', details.vehicle or 'vehicle', details.price),
-       QB.lang('c.sales.isOffering', details.seller or 'The dealer'))
+    }, Kora.lang('c.sales.buy', details.vehicle or 'vehicle', details.price),
+       Kora.lang('c.sales.isOffering', details.seller or 'The dealer'))
 
     if not answer or answer.cancelled then return { confirmed = false } end
     return { confirmed = true, payment = answer.values.payment }
 end)
 
-QB.nui.registerApp({
+Kora.nui.registerApp({
     id = APP_ID,
-    title = QB.lang('c.sales.header'),
+    title = Kora.lang('c.sales.header'),
     icon = 'Car',
     layout = 'compact',
     width = 900,
@@ -136,15 +136,15 @@ local function openSales(dealer, index)
     opening = true
 
     fn.withCleanup(function()
-        local result, err = QB.callback.trigger('qbdealership:sales:open', dealer, index)
-        if not result then return fn.notify(err or QB.lang('c.sales.cantOpen')) end
+        local result, err = Kora.callback.trigger('qbdealership:sales:open', dealer, index)
+        if not result then return fn.notify(err or Kora.lang('c.sales.cantOpen')) end
 
         dealerId, context, indexId = dealer, result, index
         local firstOption = stockedVehicleOptions()[1]
         selectedModel = firstOption and firstOption.value
 
-        QB.nui.updateApp(APP_ID, { navigation = buildNavigation() })
-        QB.nui.openApp(APP_ID, { viewId = 'sell' })
+        Kora.nui.updateApp(APP_ID, { navigation = buildNavigation() })
+        Kora.nui.openApp(APP_ID, { viewId = 'sell' })
     end, function()
         dealerId, opening, indexId = nil, false, nil
     end)
@@ -154,7 +154,7 @@ fn.keepTargetZones({
     zoneField = 'saleZones',
     radius = Config.saleTargetRadius,
     icon = 'fas fa-tags',
-    label = QB.lang('c.sales.target'),
+    label = Kora.lang('c.sales.target'),
     canInteract = fn.isStaff,
     open = openSales,
 })

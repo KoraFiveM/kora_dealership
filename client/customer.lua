@@ -76,21 +76,21 @@ local function vehicleCard(current, vehicle, categoryName, dealerType)
 
     local card = {
         id = vehicle.model,
-        label = QB.lang('c.customer.displayLabel'):format(name, price),
-        description = isCurrent and QB.lang('c.customer.currentlyDisplayed') or nil,
+        label = Kora.lang('c.customer.displayLabel'):format(name, price),
+        description = isCurrent and Kora.lang('c.customer.currentlyDisplayed') or nil,
         tone = isCurrent and 'success' or nil,
         image = fn.getVehicleImage(vehicle.model),
-        metadata = { { label = QB.lang('c.customer.class'), value = categoryName } },
+        metadata = { { label = Kora.lang('c.customer.class'), value = categoryName } },
         actions = {
-            { id = 'swap:' .. vehicle.model, label = QB.lang('c.customer.buttons.swap'), icon = 'Repeat', variant = 'outline', disabled = isCurrent,
+            { id = 'swap:' .. vehicle.model, label = Kora.lang('c.customer.buttons.swap'), icon = 'Repeat', variant = 'outline', disabled = isCurrent,
                 description = 'Display this vehicle here instead. Everyone sees it; nothing is saved.' },
-            { id = 'test:' .. vehicle.model, label = QB.lang('c.customer.buttons.test'), icon = 'Gauge', closeBeforeAction = true },
-            { id = 'purchase:' .. vehicle.model, label = QB.lang('c.customer.buttons.purchase'), icon = 'ShoppingCart', variant = 'primary',
+            { id = 'test:' .. vehicle.model, label = Kora.lang('c.customer.buttons.test'), icon = 'Gauge', closeBeforeAction = true },
+            { id = 'purchase:' .. vehicle.model, label = Kora.lang('c.customer.buttons.purchase'), icon = 'ShoppingCart', variant = 'primary',
                 closeBeforeAction = true, confirm = ('Purchase %s for $%d?'):format(name, price) },
         },
     }
     if dealerType == 'owned' then
-        card.actions[#card.actions + 1] = { id = 'offer:' .. vehicle.model, label = QB.lang('c.customer.buttons.offer'), icon = 'DollarSign', closeBeforeAction = true }
+        card.actions[#card.actions + 1] = { id = 'offer:' .. vehicle.model, label = Kora.lang('c.customer.buttons.offer'), icon = 'DollarSign', closeBeforeAction = true }
     end
     return card
 end
@@ -119,7 +119,7 @@ local function showroomNavigation(ctx)
 
     local current = modelFor(ctx.dealer, ctx.index, placement)
     local resetAction = {
-        id = 'swap:reset', label = QB.lang('c.customer.reset'), icon = 'RotateCcw', variant = 'outline',
+        id = 'swap:reset', label = Kora.lang('c.customer.reset'), icon = 'RotateCcw', variant = 'outline',
         disabled = current == placement.model,
     }
 
@@ -175,18 +175,18 @@ end
 local function offerAmountNavigation(vehicle)
     return {
         {
-            id = 'amount', label = QB.lang('c.customer.offer.label'), icon = 'DollarSign',
+            id = 'amount', label = Kora.lang('c.customer.offer.label'), icon = 'DollarSign',
             content = {
-                title = QB.lang('c.customer.offer.title'),
-                description = vehicle and ('%s · ' .. QB.lang('c.customer.offer.asking')):format(vehicle.name, vehicle.price) or '',
+                title = Kora.lang('c.customer.offer.title'),
+                description = vehicle and ('%s · ' .. Kora.lang('c.customer.offer.asking')):format(vehicle.name, vehicle.price) or '',
                 blocks = {
                     {
-                        type = 'form', id = 'offer-amount', title = QB.lang('c.customer.offer.step1'),
+                        type = 'form', id = 'offer-amount', title = Kora.lang('c.customer.offer.step1'),
                         fields = {
-                            { id = 'amount', label = QB.lang('c.customer.offer.offerAmt'), type = 'number',
+                            { id = 'amount', label = Kora.lang('c.customer.offer.offerAmt'), type = 'number',
                               min = 1, max = Config.maxPrice, default = vehicle and vehicle.price or 1, required = true },
                         },
-                        action = { id = 'offer:amount', label = QB.lang('c.customer.offer.next') },
+                        action = { id = 'offer:amount', label = Kora.lang('c.customer.offer.next') },
                     },
                 },
             },
@@ -198,17 +198,17 @@ local function offerTermsNavigation(vehicle)
     local offering = vehicle and offerInput and offerInput.amount
     return {
         {
-            id = 'terms', label = QB.lang('c.customer.offer.label'), icon = 'DollarSign',
+            id = 'terms', label = Kora.lang('c.customer.offer.label'), icon = 'DollarSign',
             content = {
-                title = QB.lang('c.customer.offer.title'),
-                description = offering and ('%s · ' .. QB.lang('c.customer.offer.asking')):format(vehicle.name, offerInput.amount) or '',
+                title = Kora.lang('c.customer.offer.title'),
+                description = offering and ('%s · ' .. Kora.lang('c.customer.offer.asking')):format(vehicle.name, offerInput.amount) or '',
                 blocks = {
                     {
-                        type = 'form', id = 'offer-terms', title = QB.lang('c.customer.offer.step2'),
+                        type = 'form', id = 'offer-terms', title = Kora.lang('c.customer.offer.step2'),
                         fields = {
-                            { id = 'terms', label = QB.lang('c.customer.offer.terms'), type = 'textarea', default = '', description = QB.lang('c.customer.offer.optional') },
+                            { id = 'terms', label = Kora.lang('c.customer.offer.terms'), type = 'textarea', default = '', description = Kora.lang('c.customer.offer.optional') },
                         },
-                        action = { id = 'offer:terms', label = QB.lang('c.customer.offer.submit') },
+                        action = { id = 'offer:terms', label = Kora.lang('c.customer.offer.submit') },
                     },
                 },
             },
@@ -242,8 +242,8 @@ local function onOfferTermsAction(actionId, context)
 end
 
 local function registerOfferApp(appId, viewId, navigation, onAction)
-    QB.nui.registerApp({
-        id = appId, title = QB.lang('c.customer.offer.title'), icon = 'DollarSign', layout = 'compact',
+    Kora.nui.registerApp({
+        id = appId, title = Kora.lang('c.customer.offer.title'), icon = 'DollarSign', layout = 'compact',
         width = 800, height = 640, defaultView = viewId,
         navigation = navigation, onAction = onAction,
     })
@@ -253,8 +253,8 @@ registerOfferApp(OFFER_AMOUNT_APP_ID, 'amount', offerAmountNavigation(nil), onOf
 registerOfferApp(OFFER_TERMS_APP_ID, 'terms', offerTermsNavigation(nil), onOfferTermsAction)
 
 local function openOfferStep(appId, viewId, navigation)
-    QB.nui.updateApp(appId, { navigation = navigation })
-    QB.nui.openApp(appId, { viewId = viewId })
+    Kora.nui.updateApp(appId, { navigation = navigation })
+    Kora.nui.openApp(appId, { viewId = viewId })
 end
 
 local function runOfferFlow(vehicle)
@@ -266,8 +266,8 @@ local function runOfferFlow(vehicle)
     openOfferStep(OFFER_TERMS_APP_ID, 'terms', offerTermsNavigation(vehicle))
     if not offerInput.submitted then return end
 
-    local ok, err = QB.callback.trigger('qbdealership:makeOffer', vehicle.dealer, vehicle.index, vehicle.model, offerInput.amount, offerInput.terms)
-    if not ok then return fn.notify(err or QB.lang('c.customer.test.error')) end
+    local ok, err = Kora.callback.trigger('qbdealership:makeOffer', vehicle.dealer, vehicle.index, vehicle.model, offerInput.amount, offerInput.terms)
+    if not ok then return fn.notify(err or Kora.lang('c.customer.test.error')) end
     fn.notify('Your offer was sent.', 'success')
 end
 
@@ -277,28 +277,28 @@ local function startTestDrive(vehicle)
         local origin = GetEntityCoords(ped)
         local originHeading = GetEntityHeading(ped)
 
-        local netId, err = QB.callback.trigger('qbdealership:testDrive', vehicle.dealer, vehicle.index, vehicle.model)
-        if not netId then return fn.notify(err or QB.lang('c.customer.test.error')) end
+        local netId, err = Kora.callback.trigger('qbdealership:testDrive', vehicle.dealer, vehicle.index, vehicle.model)
+        if not netId then return fn.notify(err or Kora.lang('c.customer.test.error')) end
 
         local testVehicle = fn.waitForNetworkVehicle(netId, 5000)
         if not testVehicle then
             TriggerServerEvent('qbdealership:server:testDriveEnded')
-            return fn.notify(QB.lang('c.customer.test.error'))
+            return fn.notify(Kora.lang('c.customer.test.error'))
         end
 
-        fn.notify(QB.lang('c.customer.test.started'), 'info')
+        fn.notify(Kora.lang('c.customer.test.started'), 'info')
         Wait(1500)
         while DoesEntityExist(testVehicle) and GetVehiclePedIsIn(PlayerPedId(), false) == testVehicle do Wait(500) end
 
         TriggerServerEvent('qbdealership:server:testDriveEnded')
-        QB.visuals.fade(origin)
+        Kora.visuals.fade(origin)
         SetEntityHeading(PlayerPedId(), originHeading)
     end)
 end
 
 local function purchaseVehicle(vehicle)
-    local netId, err = QB.callback.trigger('qbdealership:confirmPurchase', vehicle.dealer, vehicle.index, vehicle.model)
-    if not netId then return fn.notify(err or QB.lang('c.customer.test.error')) end
+    local netId, err = Kora.callback.trigger('qbdealership:confirmPurchase', vehicle.dealer, vehicle.index, vehicle.model)
+    if not netId then return fn.notify(err or Kora.lang('c.customer.test.error')) end
 
     local purchased = fn.waitForNetworkVehicle(netId, 5000)
     if purchased then TaskWarpPedIntoVehicle(PlayerPedId(), purchased, -1) end
@@ -311,7 +311,7 @@ local vehicleActions = {
 }
 
 local function swapDisplay(ctx, model, successMessage, failureMessage)
-    local ok, err = QB.callback.trigger('qbdealership:swap', ctx.dealer, ctx.index, model)
+    local ok, err = Kora.callback.trigger('qbdealership:swap', ctx.dealer, ctx.index, model)
     if not ok then return { notice = fn.notice(err or failureMessage, 'destructive') } end
     return { update = { navigation = showroomNavigation(ctx) }, notice = fn.notice(successMessage) }
 end
@@ -324,14 +324,14 @@ local function onShowroomAction(actionId, context)
     if not placement then return { close = true } end
 
     if actionId == 'swap:reset' then
-        return swapDisplay(ctx, nil, QB.lang('c.customer.swap.success'), QB.lang('c.customer.swap.error'))
+        return swapDisplay(ctx, nil, Kora.lang('c.customer.swap.success'), Kora.lang('c.customer.swap.error'))
     end
 
     local kind, model = actionId:match('^(%a+):(.+)$')
     if not kind or not model then return {} end
 
     if kind == 'swap' then
-        return swapDisplay(ctx, model, QB.lang('c.customer.swap.success'), QB.lang('c.customer.swap.error'))
+        return swapDisplay(ctx, model, Kora.lang('c.customer.swap.success'), Kora.lang('c.customer.swap.error'))
     end
 
     local vehicle = vehicleDescriptor(dealerData, ctx.dealer, ctx.index, model)
@@ -340,7 +340,7 @@ local function onShowroomAction(actionId, context)
     return {}
 end
 
-QB.nui.registerApp({
+Kora.nui.registerApp({
     id = SHOWROOM_APP_ID,
     title = 'Dealership Showroom',
     icon = 'Car',
@@ -358,8 +358,8 @@ local function openShowroom(dealer, index)
 
     fn.withCleanup(function()
         local navigation = showroomNavigation(showroomCtx)
-        QB.nui.updateApp(SHOWROOM_APP_ID, { navigation = navigation })
-        QB.nui.openApp(SHOWROOM_APP_ID, {
+        Kora.nui.updateApp(SHOWROOM_APP_ID, { navigation = navigation })
+        Kora.nui.openApp(SHOWROOM_APP_ID, {
             viewId = showroomStartView(navigation, showroomCtx),
             data = { dealer = dealer, index = index },
         })
@@ -378,7 +378,7 @@ end
 
 local function addZone(dealer, zone)
     if not zone or not zone.points then return end
-    zones[dealer] = QB.zones.poly({
+    zones[dealer] = Kora.zones.poly({
         points = zone.points,
         thickness = zone.thickness or 4.0,
         onEnter = function()  end,
@@ -389,7 +389,7 @@ end
 local function removeVehicle(dealer, index)
     local entity = vehicles[dealer] and vehicles[dealer][index]
     if entity then
-        QB.entities.remove(entity)
+        Kora.entities.remove(entity)
         vehicles[dealer][index] = nil
     end
     if shown[dealer] then shown[dealer][index] = nil end
@@ -399,7 +399,7 @@ local function attachBrowseTarget(entity, dealer, index)
     exports.kora_target:addEntity(entity, {
         {
             icon = 'fas fa-car',
-            label = QB.lang('c.customer.target'),
+            label = Kora.lang('c.customer.target'),
             onSelect = function() CreateThread(function() openShowroom(dealer, index) end) end,
         },
     })
@@ -409,7 +409,7 @@ local function spawnVehicle(dealer, index, placement)
     local model = modelFor(dealer, index, placement)
     local coords = placement.coords
 
-    local entity = QB.entities.create(model, vector3(coords.x, coords.y, coords.z), { freeze = true, invincible = true })
+    local entity = Kora.entities.create(model, vector3(coords.x, coords.y, coords.z), { freeze = true, invincible = true })
     if not entity or entity == 0 then return end
 
     SetEntityHeading(entity, coords.w or 0.0)

@@ -11,7 +11,7 @@ DealershipViews = { placements = emptyView, spawns = emptyView, pointZones = emp
 fn = { appRefresher = function(_, build)
     return function() return { navigation = build() } end, error
 end }
-QB = {
+Kora = {
     lang = function(key) return key end,
     callback = { trigger = function(name)
         if name == 'qbdealership:list' then return {} end

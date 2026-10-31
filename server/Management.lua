@@ -74,7 +74,7 @@ local function addEmployee(src, dealer, index, serverId)
     local target = number and math.tointeger(number)
     if not target or target == src or GetPlayerPed(target) == 0 then return fn.fail('That player is not available.') end
 
-    local close = QB.distance.coords(GetEntityCoords(GetPlayerPed(src)), GetEntityCoords(GetPlayerPed(target)), Config.nearbyCustomerDistance)
+    local close = Kora.distance.coords(GetEntityCoords(GetPlayerPed(src)), GetEntityCoords(GetPlayerPed(target)), Config.nearbyCustomerDistance)
     if not close then return fn.fail('That player is too far away.') end
 
     local cid = fn.citizenId(target)
@@ -333,10 +333,10 @@ local function loadOffers(record)
     local limit = math.max(1, math.floor(tonumber(Config.offersPageLimit) or 50))
     local result = { pending = {}, history = {} }
 
-    local pending = QB.sql.query(offerSelect:gsub('{op}', '='), { record.id, 'pending', limit }) or {}
+    local pending = Kora.sql.query(offerSelect:gsub('{op}', '='), { record.id, 'pending', limit }) or {}
     for _, row in ipairs(pending) do result.pending[#result.pending + 1] = offerView(record, row) end
 
-    local history = QB.sql.query(offerSelect:gsub('{op}', '<>'), { record.id, 'pending', limit }) or {}
+    local history = Kora.sql.query(offerSelect:gsub('{op}', '<>'), { record.id, 'pending', limit }) or {}
     for _, row in ipairs(history) do result.history[#result.history + 1] = offerView(record, row) end
 
     return result
@@ -350,7 +350,7 @@ end
 
 -- Moves a pending offer to `status`. Exactly one caller can win; affectedRows says whether it was us.
 local function claimOffer(id, dealer, from, status, acceptor)
-    local result = QB.sql.query(
+    local result = Kora.sql.query(
         'UPDATE `qbdealership_offers` SET `status` = ?, `acceptor` = ? WHERE `id` = ? AND `dealership_id` = ? AND `status` = ?',
         { status, acceptor, id, dealer, from }
     )
@@ -361,7 +361,7 @@ local function settleOffer(dealer, id, decision, acceptor)
     local record = Dealerships[dealer]
     if not record or record.type ~= 'owned' then return fn.fail('This dealership is not owned.') end
 
-    local rows = QB.sql.query(
+    local rows = Kora.sql.query(
         'SELECT * FROM `qbdealership_offers` WHERE `id` = ? AND `dealership_id` = ? AND `status` = ?',
         { id, dealer, 'pending' }
     )
@@ -381,7 +381,7 @@ local function settleOffer(dealer, id, decision, acceptor)
 
     local price = math.floor(tonumber(offer.offer_price) or 0)
     local function release()
-        claimOffer(id, dealer, 'accepted', 'pending', QB.sql.NULL)
+        claimOffer(id, dealer, 'accepted', 'pending', Kora.sql.NULL)
     end
 
     if not fn.takeCash(offer.offeror, price) then
@@ -427,7 +427,7 @@ end
 
 -- Offers past their auto-accept time are accepted; one that can no longer be completed is denied.
 local function processDueOffers()
-    local due = QB.sql.query(
+    local due = Kora.sql.query(
         'SELECT `id`, `dealership_id` FROM `qbdealership_offers` WHERE `status` = ? AND `auto_accept_at` IS NOT NULL AND `auto_accept_at` <= NOW() LIMIT 20',
         { 'pending' }
     ) or {}
@@ -448,14 +448,14 @@ end
 
 CreateThread(autoAcceptLoop)
 
-QB.callback.register('qbdealership:management:openOwnerManagement', openOwnerManagement)
-QB.callback.register('qbdealership:management:addEmployee', addEmployee)
-QB.callback.register('qbdealership:management:removeEmployee', removeEmployee)
-QB.callback.register('qbdealership:management:savePermissions', savePermissions)
-QB.callback.register('qbdealership:management:saveSettings', saveSettings)
-QB.callback.register('qbdealership:management:savePlacement', savePlacement)
-QB.callback.register('qbdealership:management:depositFunds', depositFunds)
-QB.callback.register('qbdealership:management:withdrawFunds', withdrawFunds)
-QB.callback.register('qbdealership:management:orderVehicle', orderVehicle)
-QB.callback.register('qbdealership:management:getOffers', getOffers)
-QB.callback.register('qbdealership:management:resolveOffer', resolveOffer)
+Kora.callback.register('qbdealership:management:openOwnerManagement', openOwnerManagement)
+Kora.callback.register('qbdealership:management:addEmployee', addEmployee)
+Kora.callback.register('qbdealership:management:removeEmployee', removeEmployee)
+Kora.callback.register('qbdealership:management:savePermissions', savePermissions)
+Kora.callback.register('qbdealership:management:saveSettings', saveSettings)
+Kora.callback.register('qbdealership:management:savePlacement', savePlacement)
+Kora.callback.register('qbdealership:management:depositFunds', depositFunds)
+Kora.callback.register('qbdealership:management:withdrawFunds', withdrawFunds)
+Kora.callback.register('qbdealership:management:orderVehicle', orderVehicle)
+Kora.callback.register('qbdealership:management:getOffers', getOffers)
+Kora.callback.register('qbdealership:management:resolveOffer', resolveOffer)

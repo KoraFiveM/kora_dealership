@@ -1,4 +1,4 @@
-QB.print.debug('qbdealership server/customer.lua loaded.')
+Kora.print.debug('qbdealership server/customer.lua loaded.')
 local testDrives = {}
 
 local function endTestDrive(src)
@@ -138,7 +138,7 @@ local function makeOffer(src, dealer, index, model, amount, terms)
     local offeror = fn.citizenId(src)
     if not offeror then return fn.fail('Could not identify you.') end
 
-    local open = QB.sql.query(
+    local open = Kora.sql.query(
         'SELECT COUNT(*) AS `total` FROM `qbdealership_offers` WHERE `offeror` = ? AND `status` = ?',
         { offeror, 'pending' }
     )
@@ -147,9 +147,9 @@ local function makeOffer(src, dealer, index, model, amount, terms)
     end
 
     local days = tonumber(Config.autoConfirmOffersDays)
-    local seconds = days and days > 0 and math.floor(days * 86400) or QB.sql.NULL
+    local seconds = days and days > 0 and math.floor(days * 86400) or Kora.sql.NULL
 
-    local ok = QB.sql.transaction({
+    local ok = Kora.sql.transaction({
         {
             sql = 'INSERT INTO `qbdealership_offers` (`dealership_id`, `model`, `offer_price`, `offer_text`, `auto_accept_at`, `status`, `offeror`) VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?, ?)',
             params = { dealer, entry.model, amount, terms, seconds, 'pending', offeror },
@@ -159,9 +159,9 @@ local function makeOffer(src, dealer, index, model, amount, terms)
     return true
 end
 
-QB.callback.register('qbdealership:testDrive', testDrive)
-QB.callback.register('qbdealership:confirmPurchase', confirmPurchase)
-QB.callback.register('qbdealership:makeOffer', makeOffer)
+Kora.callback.register('qbdealership:testDrive', testDrive)
+Kora.callback.register('qbdealership:confirmPurchase', confirmPurchase)
+Kora.callback.register('qbdealership:makeOffer', makeOffer)
 
 RegisterNetEvent('qbdealership:server:testDriveEnded', onTestDriveEnded)
 AddEventHandler('playerDropped', onPlayerDropped)
