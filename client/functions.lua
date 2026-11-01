@@ -1,6 +1,5 @@
 fn = {}
 
-
 function fn.waitForDealerships()
     repeat Wait(100) until GlobalState.Dealerships ~= nil
 end
@@ -41,7 +40,6 @@ end
 function fn.canHandleOffers(dealer)
     return isListed('DealershipOfferStaff', dealer)
 end
-
 
 function fn.toInt(value)
     return math.floor(tonumber(value) or 0)
@@ -150,7 +148,7 @@ function fn.waitForNetworkVehicle(netId, timeoutMs)
 end
 
 function fn.keepTargetZones(options)
-    local zoneIds = {}   
+    local zoneIds = {}
     local signatures = {}
 
     local function removeZones(dealer)

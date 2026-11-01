@@ -140,7 +140,6 @@ local function vehiclesView()
                     fields = { { id = 'model', label = Kora.lang('c.creator.vehicles.form.veh'), type = 'select', options = loadCatalog(), required = true } },
                     action = { id = 'vehicles:add', label = Kora.lang('c.creator.vehicles.form.add') },
                 },
-                
                 { type = 'list', id = 'vehicle-list', title = Kora.lang('c.creator.vehicles.form.current', #items), layout = 'cards',  items = items, empty = Kora.lang('c.creator.vehicles.form.empty') },
             },
         },
@@ -162,7 +161,6 @@ local function buildNavigation()
 end
 
 local refresh, fail = fn.appRefresher(APP_ID, buildNavigation)
-
 
 local function saveSelected(patch)
     local result, err = Kora.callback.trigger('qbdealership:save', selected.id, patch)
