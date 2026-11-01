@@ -308,7 +308,6 @@ end
 
 local refresh, fail = fn.appRefresher(APP_ID, buildNavigation)
 
-
 local function saveRecord(patch)
     local result, err = Kora.callback.trigger('qbdealership:management:savePlacement', dealerId, indexId, patch)
     if not result then return fail(err or Kora.lang('c.management.saveError')) end
@@ -435,7 +434,6 @@ Kora.nui.registerApp({
     onAction = onAction,
 })
 
-
 local function saveAimedRecord(patch)
     local result, err = Kora.callback.trigger('qbdealership:management:savePlacement', dealerId, indexId, patch)
     if result then record = result else fn.notify(err or Kora.lang('c.management.saveError')) end
@@ -510,7 +508,5 @@ fn.keepTargetZones({
     icon = 'fas fa-briefcase',
     label = Kora.lang('c.management.target'),
     canInteract = function() return true end, -- the server decides who gets in (owner or employee)
-    open = function(dealer, index)
-        openPortal(dealer, index)
-    end,
+    open = openPortal,
 })

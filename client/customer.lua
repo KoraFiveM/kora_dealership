@@ -68,7 +68,6 @@ local function vehicleDescriptor(dealerData, dealer, index, model)
     }
 end
 
-
 local function vehicleCard(current, vehicle, categoryName, dealerType)
     local isCurrent = vehicle.model == current
     local name = fn.vehicleName(vehicle)
@@ -170,7 +169,6 @@ local function showroomStartView(navigation, ctx)
     end
     return navigation[1].id
 end
-
 
 local function offerAmountNavigation(vehicle)
     return {
@@ -367,7 +365,6 @@ local function openShowroom(dealer, index)
         showroomCtx = nil
     end)
 end
-
 
 local function removeZone(dealer)
     if zones[dealer] then
