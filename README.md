@@ -28,3 +28,7 @@ Run `/dealershipcreator` (ace `Config.adminPermission`, default `admin`) to open
   after `Config.autoConfirmOffersDays`.
 
 Limits and tunables (caps, cooldowns, test drive length, distances) are in `config.lua`.
+
+## QBCore compatibility
+
+The resource provides `qb-vehicleshop`. After every confirmed purchase (public purchase, employee sale, accepted offer) it emits the server-local event `qb-vehicleshop:server:onVehiclePurchased(citizenid, model, plate)`. Stock `transfervehicle`, `spawnvehicle` and showroom events are not provided.

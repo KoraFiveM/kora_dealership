@@ -311,6 +311,7 @@ function fn.deliverVehicle(target, model, spawn)
 
     if type(target) ~= 'number' then
         if not insertOwnedVehicle(target, model, plate, Config.offerVehicleState) then return nil end
+        TriggerEvent('qb-vehicleshop:server:onVehiclePurchased', target, model, plate)
         return true
     end
 
@@ -328,6 +329,7 @@ function fn.deliverVehicle(target, model, spawn)
     end
 
     exports.kora_vehiclekeys:giveKeys(target, plate)
+    TriggerEvent('qb-vehicleshop:server:onVehiclePurchased', cid, model, plate)
     TaskWarpPedIntoVehicle(GetPlayerPed(target), vehicle, -1)
     return netId
 end
