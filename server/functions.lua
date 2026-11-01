@@ -9,7 +9,7 @@ local defaultSettings = { maxPriceOverride = 10, commission = 5, employeeDiscoun
 fn.defaultSettings = defaultSettings
 
 CreateThread(function()
-    local dealership = Kora.sql.query([[
+    Kora.sql.query([[
         CREATE TABLE IF NOT EXISTS `qbdealerships` (
           `id` varchar(64) NOT NULL,
           `label` varchar(128) NOT NULL DEFAULT '',
@@ -27,7 +27,7 @@ CreateThread(function()
           PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ]])
-    local dealerData = Kora.sql.query([[
+    Kora.sql.query([[
         CREATE TABLE IF NOT EXISTS `qbdealership_management` (
         `dealership_id` varchar(64) NOT NULL,
         `current_balance` int(11) NOT NULL DEFAULT 0,
@@ -43,7 +43,7 @@ CreateThread(function()
         CONSTRAINT `fk_management_dealership` FOREIGN KEY (`dealership_id`) REFERENCES `qbdealerships` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
         )ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     ]])
-    local offers = Kora.sql.query([[
+    Kora.sql.query([[
     CREATE TABLE IF NOT EXISTS `qbdealership_offers` (
           `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
           `dealership_id` varchar(64) NOT NULL,
@@ -137,8 +137,6 @@ end
 
 AddEventHandler('playerDropped', clearCooldowns)
 
-AddEventHandler('playerDropped', clearCooldowns)
-
 function fn.citizenId(src)
     local player = exports.kora_core:getPlayerData(src)
     return player and player.citizenid
@@ -170,7 +168,6 @@ function fn.publishSwaps()
 end
 
 -- Money for a citizenid that may be offline. Cash only.
-
 function fn.takeCash(cid, amount)
     amount = tonumber(amount) or 0
     if amount <= 0 then return false end
@@ -724,5 +721,5 @@ local function load()
     fn.publishStaff()
 end
 
-CreateThread(function() load() end)
+CreateThread(load)
 
