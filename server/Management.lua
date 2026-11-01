@@ -15,8 +15,6 @@ local offerSelect = ([[SELECT o.*, %s AS `offeror_name`, %s AS `acceptor_name`,
     LEFT JOIN `players` a ON a.`citizenid` = o.`acceptor` COLLATE utf8mb4_unicode_ci
     WHERE o.`dealership_id` = ? AND o.`status` {op} ? ORDER BY o.`id` DESC LIMIT ?]]):format(nameSql:format('p', 'p'), nameSql:format('a', 'a'))
 
--- Authorisation
-
 -- requirement: 'owner', 'employee' (owner included), or a permission value from Config.employeePermissions.
 -- Returns the dealership record, or false and a message. Validates the client-supplied dealer and index.
 local function authorize(src, dealer, index, requirement)
@@ -37,8 +35,6 @@ local function authorize(src, dealer, index, requirement)
     if not near then return fn.fail(err) end
     return record
 end
-
--- Employees
 
 local function findEmployee(data, cid)
     for id, employee in ipairs(data.employees) do
@@ -155,8 +151,6 @@ local function saveSettings(src, dealer, index, values)
     return settings
 end
 
--- Placements, spawns and zones
-
 local function insidePolygon(x, y, points)
     local inside = false
     local j = #points
@@ -240,8 +234,6 @@ local function savePlacement(src, dealer, index, patch)
     return fn.patchDealership(dealer, allowed)
 end
 
--- Funds
-
 local function depositFunds(src, dealer, index, amount)
     local record, err = authorize(src, dealer, index, 'owner')
     if not record then return fn.fail(err) end
@@ -310,8 +302,6 @@ local function orderVehicle(src, dealer, index, model, quantity)
     end
     return { record = Dealerships[dealer], cost = cost, amount = amount }
 end
-
--- Offers
 
 local function offerView(record, row)
     local entry = fn.findVehicle(record, row.model)
