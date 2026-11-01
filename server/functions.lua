@@ -199,8 +199,6 @@ function fn.giveCash(cid, amount)
     return result and result.affectedRows == 1
 end
 
--- Vehicles and stock
-
 local function sharedVehicle(model)
     return exports.kora_core:getShared('vehicles', model)
 end
@@ -352,8 +350,6 @@ function fn.getFreeSpawn(spawns, radius)
     end
 end
 
--- Management data
-
 local function newManagement(row)
     row = row or {}
     local settings = fn.decode(row.settings, {})
@@ -468,8 +464,6 @@ function fn.recordSale(dealer, seller, sale)
     return true, commission
 end
 
--- Permissions
-
 local function hasPermission(dealer, cid, action)
     local record = Dealerships[dealer]
     if not record or not cid then return false end
@@ -521,8 +515,6 @@ function fn.publishStaff()
     GlobalState.DealershipStaff = staff
     GlobalState.DealershipOfferStaff = offerStaff -- who may open the management Offers page
 end
-
--- Persistence
 
 function fn.saveDealership(record)
     return Kora.sql.transaction({
