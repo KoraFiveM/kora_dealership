@@ -269,6 +269,35 @@ local function runOfferFlow(vehicle)
     fn.notify('Your offer was sent.', 'success')
 end
 
+-- Active test drives waiting for the player to leave their test vehicle. Resolved
+-- from kora_lib's cache 'vehicle' change event instead of polling the seat.
+local testDrives = {}
+
+local function checkTestDrives(current)
+    if current == nil then current = GetVehiclePedIsIn(PlayerPedId(), false) end
+    local ended = {}
+    for drive in pairs(testDrives) do
+        if not DoesEntityExist(drive.vehicle) or current ~= drive.vehicle then
+            ended[#ended + 1] = drive
+        end
+    end
+    -- Resolve after the scan: resuming a waiter may start another test drive.
+    for i = 1, #ended do
+        testDrives[ended[i]] = nil
+        ended[i].ended:resolve(true)
+    end
+end
+
+local function watchTestDrives()
+    Kora.cache.onChange('vehicle', function(current) checkTestDrives(current or 0) end)
+    checkTestDrives()
+end
+
+watchTestDrives()
+AddEventHandler('onClientResourceStart', function(resource)
+    if resource == 'kora_lib' then watchTestDrives() end
+end)
+
 local function startTestDrive(vehicle)
     CreateThread(function()
         local ped = PlayerPedId()
@@ -286,7 +315,10 @@ local function startTestDrive(vehicle)
 
         fn.notify(Kora.lang('c.customer.test.started'), 'info')
         Wait(1500)
-        while DoesEntityExist(testVehicle) and GetVehiclePedIsIn(PlayerPedId(), false) == testVehicle do Wait(500) end
+        local drive = { vehicle = testVehicle, ended = promise.new() }
+        testDrives[drive] = true
+        checkTestDrives()
+        Citizen.Await(drive.ended)
 
         TriggerServerEvent('qbdealership:server:testDriveEnded')
         Kora.visuals.fade(origin)
