@@ -23,6 +23,7 @@ shared_scripts {
 
 server_scripts {
     '@kora_sql/init.lua',
+    'server/schema.lua',
     'server/functions.lua',
     'server/creator.lua',
     'server/customer.lua',
@@ -39,4 +40,4 @@ client_scripts {
     'client/Management.lua',
 }
 
-files { 'locales/en.lua', 'sql/dealers.sql' }
+files { 'locales/en.lua' }

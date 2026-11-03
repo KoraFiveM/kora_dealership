@@ -8,8 +8,9 @@ Run `/dealershipcreator` (ace `Config.adminPermission`, default `admin`) to open
 
 ## Setup
 
-1. Import `sql/dealers.sql` (creates `qbdealerships`, `qbdealership_management`,
-   `qbdealership_offers` and seeds a public `pdm` dealership; safe to re-run).
+1. Nothing to import: on start kora_sql creates `qbdealerships`, `qbdealership_management`
+   and `qbdealership_offers` and adds anything missing to existing ones. With `Config.UsePDM`
+   it also seeds a public `pdm` dealership if it is missing.
 2. Make sure the ace named in `Config.adminPermission` is granted to your admins, e.g.
    `add_ace group.admin admin allow`.
 3. Dependencies: `kora_lib`, `kora_sql`, `kora_core`, `kora_vehiclekeys`, `kora_target`.
