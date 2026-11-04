@@ -4,7 +4,7 @@ local pdm = {
 
 QBDealershipSchema = {
     {
-        name = 'qbdealerships',
+        name = 'kora_dealerships',
         collate = 'utf8mb4_unicode_ci',
         columns = {
             { name = 'id', type = 'varchar(64)' },
@@ -25,7 +25,7 @@ QBDealershipSchema = {
         seed = { rows = pdm },
     },
     {
-        name = 'qbdealership_management',
+        name = 'kora_dealership_management',
         collate = 'utf8mb4_unicode_ci',
         columns = {
             { name = 'dealership_id', type = 'varchar(64)' },
@@ -41,12 +41,12 @@ QBDealershipSchema = {
         },
         primary = { 'dealership_id' },
         foreign = {
-            { name = 'fk_management_dealership', columns = { 'dealership_id' }, ref_table = 'qbdealerships',
+            { name = 'fk_management_dealership', columns = { 'dealership_id' }, ref_table = 'kora_dealerships',
               ref_columns = { 'id' }, on_delete = 'CASCADE', on_update = 'CASCADE' },
         },
     },
     {
-        name = 'qbdealership_offers',
+        name = 'kora_dealership_offers',
         collate = 'utf8mb4_unicode_ci',
         columns = {
             { name = 'id', type = 'int', unsigned = true, auto_increment = true },
@@ -68,7 +68,7 @@ QBDealershipSchema = {
             { name = 'idx_offers_pending_auto_accept', columns = { 'status', 'auto_accept_at' } },
         },
         foreign = {
-            { name = 'fk_offers_dealership', columns = { 'dealership_id' }, ref_table = 'qbdealerships',
+            { name = 'fk_offers_dealership', columns = { 'dealership_id' }, ref_table = 'kora_dealerships',
               ref_columns = { 'id' }, on_delete = 'CASCADE', on_update = 'CASCADE' },
         },
     },

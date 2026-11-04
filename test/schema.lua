@@ -5,13 +5,13 @@ dofile('server/schema.lua')
 local declared = {}
 for _, spec in ipairs(QBDealershipSchema) do declared[spec.name] = spec end
 assert(#QBDealershipSchema == 3, 'three tables declared')
-assert(QBDealershipSchema[1].name == 'qbdealerships', 'the parent table comes first for the foreign keys')
-for _, name in ipairs({ 'qbdealerships', 'qbdealership_management', 'qbdealership_offers' }) do
+assert(QBDealershipSchema[1].name == 'kora_dealerships', 'the parent table comes first for the foreign keys')
+for _, name in ipairs({ 'kora_dealerships', 'kora_dealership_management', 'kora_dealership_offers' }) do
     assert(declared[name] and #declared[name].columns > 0, name .. ' is declared')
 end
-assert(declared.qbdealership_offers.foreign[1].ref_table == 'qbdealerships', 'offers cascade from dealerships')
+assert(declared.kora_dealership_offers.foreign[1].ref_table == 'kora_dealerships', 'offers cascade from dealerships')
 
-local pdm = declared.qbdealerships.seed.rows[1]
+local pdm = declared.kora_dealerships.seed.rows[1]
 assert(pdm.id == 'pdm' and pdm.type == 'public' and pdm.price == nil, 'pdm seed row is a public dealership')
 assert(pdm.vehicles:find('"model":"asbo"', 1, true) and pdm.zone:find('"thickness":28.375', 1, true), 'pdm seed keeps its JSON payloads')
 

@@ -10,7 +10,7 @@ local decisions = { accept = 'accepted', deny = 'denied' }
 local nameSql = 'CONCAT(JSON_UNQUOTE(JSON_EXTRACT(%s.`charinfo`, "$.firstname")), " ", JSON_UNQUOTE(JSON_EXTRACT(%s.`charinfo`, "$.lastname")))'
 local offerSelect = ([[SELECT o.*, %s AS `offeror_name`, %s AS `acceptor_name`,
         DATE_FORMAT(o.`auto_accept_at`, '%%Y-%%m-%%d %%H:%%i') AS `expiry_text`
-    FROM `qbdealership_offers` o
+    FROM `kora_dealership_offers` o
     LEFT JOIN `players` p ON p.`citizenid` = o.`offeror` COLLATE utf8mb4_unicode_ci
     LEFT JOIN `players` a ON a.`citizenid` = o.`acceptor` COLLATE utf8mb4_unicode_ci
     WHERE o.`dealership_id` = ? AND o.`status` {op} ? ORDER BY o.`id` DESC LIMIT ?]]):format(nameSql:format('p', 'p'), nameSql:format('a', 'a'))
@@ -341,7 +341,7 @@ end
 -- Moves a pending offer to `status`. Exactly one caller can win; affectedRows says whether it was us.
 local function claimOffer(id, dealer, from, status, acceptor)
     local result = Kora.sql.query(
-        'UPDATE `qbdealership_offers` SET `status` = ?, `acceptor` = ? WHERE `id` = ? AND `dealership_id` = ? AND `status` = ?',
+        'UPDATE `kora_dealership_offers` SET `status` = ?, `acceptor` = ? WHERE `id` = ? AND `dealership_id` = ? AND `status` = ?',
         { status, acceptor, id, dealer, from }
     )
     return result ~= nil and result.affectedRows == 1
@@ -352,7 +352,7 @@ local function settleOffer(dealer, id, decision, acceptor)
     if not record or record.type ~= 'owned' then return fn.fail('This dealership is not owned.') end
 
     local rows = Kora.sql.query(
-        'SELECT * FROM `qbdealership_offers` WHERE `id` = ? AND `dealership_id` = ? AND `status` = ?',
+        'SELECT * FROM `kora_dealership_offers` WHERE `id` = ? AND `dealership_id` = ? AND `status` = ?',
         { id, dealer, 'pending' }
     )
     local offer = rows and rows[1]
@@ -418,7 +418,7 @@ end
 -- Offers past their auto-accept time are accepted; one that can no longer be completed is denied.
 local function processDueOffers()
     local due = Kora.sql.query(
-        'SELECT `id`, `dealership_id` FROM `qbdealership_offers` WHERE `status` = ? AND `auto_accept_at` IS NOT NULL AND `auto_accept_at` <= NOW() LIMIT 20',
+        'SELECT `id`, `dealership_id` FROM `kora_dealership_offers` WHERE `status` = ? AND `auto_accept_at` IS NOT NULL AND `auto_accept_at` <= NOW() LIMIT 20',
         { 'pending' }
     ) or {}
 

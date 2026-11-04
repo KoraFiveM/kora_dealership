@@ -139,7 +139,7 @@ local function makeOffer(src, dealer, index, model, amount, terms)
     if not offeror then return fn.fail('Could not identify you.') end
 
     local open = Kora.sql.query(
-        'SELECT COUNT(*) AS `total` FROM `qbdealership_offers` WHERE `offeror` = ? AND `status` = ?',
+        'SELECT COUNT(*) AS `total` FROM `kora_dealership_offers` WHERE `offeror` = ? AND `status` = ?',
         { offeror, 'pending' }
     )
     if open and open[1] and (tonumber(open[1].total) or 0) >= Config.maxPendingOffers then
@@ -151,7 +151,7 @@ local function makeOffer(src, dealer, index, model, amount, terms)
 
     local ok = Kora.sql.transaction({
         {
-            sql = 'INSERT INTO `qbdealership_offers` (`dealership_id`, `model`, `offer_price`, `offer_text`, `auto_accept_at`, `status`, `offeror`) VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?, ?)',
+            sql = 'INSERT INTO `kora_dealership_offers` (`dealership_id`, `model`, `offer_price`, `offer_text`, `auto_accept_at`, `status`, `offeror`) VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), ?, ?)',
             params = { dealer, entry.model, amount, terms, seconds, 'pending', offeror },
         },
     })

@@ -66,7 +66,7 @@ Kora.callback.register('qbdealership:delete', function(src, id)
     if not allowed then return false, err end
     if type(id) ~= 'string' or not Dealerships[id] then return fn.fail('Unknown dealership.') end
 
-    local ok, deleteErr = Kora.sql.update('DELETE FROM `qbdealerships` WHERE `id` = ?', { id })
+    local ok, deleteErr = Kora.sql.update('DELETE FROM `kora_dealerships` WHERE `id` = ?', { id })
     if not ok then return false, deleteErr or 'Failed to delete dealership.' end
 
     fn.forgetDealership(id)

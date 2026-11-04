@@ -8,8 +8,8 @@ Run `/dealershipcreator` (ace `Config.adminPermission`, default `admin`) to open
 
 ## Setup
 
-1. Nothing to import: on start kora_sql creates `qbdealerships`, `qbdealership_management`
-   and `qbdealership_offers` and adds anything missing to existing ones. With `Config.UsePDM`
+1. Nothing to import: on start kora_sql creates `kora_dealerships`, `kora_dealership_management`
+   and `kora_dealership_offers` and adds anything missing to existing ones. With `Config.UsePDM`
    it also seeds a public `pdm` dealership if it is missing.
 2. Make sure the ace named in `Config.adminPermission` is granted to your admins, e.g.
    `add_ace group.admin admin allow`.
@@ -23,9 +23,9 @@ Run `/dealershipcreator` (ace `Config.adminPermission`, default `admin`) to open
 
 ## Tables
 
-- `qbdealerships`: label, type, price, owner and the zone/vehicles/placements/spawns/zones as JSON.
-- `qbdealership_management`: balance, income, spent, sales log, employees, permissions, settings.
-- `qbdealership_offers`: customer offers on owned dealerships; accepted, denied, or auto-accepted
+- `kora_dealerships`: label, type, price, owner and the zone/vehicles/placements/spawns/zones as JSON.
+- `kora_dealership_management`: balance, income, spent, sales log, employees, permissions, settings.
+- `kora_dealership_offers`: customer offers on owned dealerships; accepted, denied, or auto-accepted
   after `Config.autoConfirmOffersDays`.
 
 Limits and tunables (caps, cooldowns, test drive length, distances) are in `config.lua`.

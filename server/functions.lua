@@ -305,7 +305,7 @@ end
 local function writeManagement(dealer, data)
     return Kora.sql.transaction({
         {
-            sql = 'UPDATE `qbdealership_management` SET `current_balance` = ?, `income` = ?, `spent` = ?, `sales` = ?, `employees` = ?, `employee_permissions` = ?, `settings` = ? WHERE `dealership_id` = ?',
+            sql = 'UPDATE `kora_dealership_management` SET `current_balance` = ?, `income` = ?, `spent` = ?, `sales` = ?, `employees` = ?, `employee_permissions` = ?, `settings` = ? WHERE `dealership_id` = ?',
             params = {
                 data.balance, data.income, data.spent, json.encode(data.sales),
                 json.encode(data.employees), json.encode(data.permissions), json.encode(data.settings), dealer,
@@ -318,7 +318,7 @@ function fn.management(dealer)
     if not DealerData[dealer] then
         DealerData[dealer] = newManagement()
         Kora.sql.query(
-            'INSERT IGNORE INTO `qbdealership_management` (`dealership_id`, `sales`, `employees`, `employee_permissions`, `settings`) VALUES (?, ?, ?, ?, ?)',
+            'INSERT IGNORE INTO `kora_dealership_management` (`dealership_id`, `sales`, `employees`, `employee_permissions`, `settings`) VALUES (?, ?, ?, ?, ?)',
             { dealer, '[]', '[]', '{}', json.encode(defaultSettings) }
         )
     end
@@ -453,7 +453,7 @@ end
 function fn.saveDealership(record)
     return Kora.sql.transaction({
         {
-            sql = [[INSERT INTO `qbdealerships` (`id`,`label`,`type`,`price`,`owner`,`zone`,`vehicles`,`placements`,`spawns`,`management_zones`,`sale_zones`)
+            sql = [[INSERT INTO `kora_dealerships` (`id`,`label`,`type`,`price`,`owner`,`zone`,`vehicles`,`placements`,`spawns`,`management_zones`,`sale_zones`)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?)
                 ON DUPLICATE KEY UPDATE `label` = VALUES(`label`), `type` = VALUES(`type`), `price` = VALUES(`price`),
                     `owner` = VALUES(`owner`), `zone` = VALUES(`zone`), `vehicles` = VALUES(`vehicles`),
@@ -644,11 +644,11 @@ local function rowToRecord(row)
 end
 
 local function load()
-    for _, row in ipairs(Kora.sql.query('SELECT * FROM `qbdealerships`', {}) or {}) do
+    for _, row in ipairs(Kora.sql.query('SELECT * FROM `kora_dealerships`', {}) or {}) do
         Dealerships[row.id] = rowToRecord(row)
     end
 
-    for _, row in ipairs(Kora.sql.query('SELECT * FROM `qbdealership_management`', {}) or {}) do
+    for _, row in ipairs(Kora.sql.query('SELECT * FROM `kora_dealership_management`', {}) or {}) do
         DealerData[row.dealership_id] = newManagement(row)
     end
     fn.publish()
