@@ -18,7 +18,7 @@ Kora = {
         assert(name == 'qbdealership:get')
         return { id = 'shop', label = 'Shop', type = 'public', vehicles = {} }
     end },
-    nui = { registerApp = function(definition) app = definition end },
+    nui = { registerApp = function(definition) app = definition end, updateApp = function() end },
 }
 RegisterCommand = function() end
 dofile('client/creator.lua')

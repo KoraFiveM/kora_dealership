@@ -23,12 +23,16 @@ local function dealershipsView()
     local list = Kora.callback.trigger('qbdealership:list') or {}
     local items = {}
     for _, entry in ipairs(list) do
+        local description = entry.type == 'for_sale' and Kora.lang('c.creator.for_sale', entry.price or 0)
+            or entry.type == 'owned' and Kora.lang('c.creator.owned', entry.owner or 'unclaimed')
+            or Kora.lang('c.creator.public')
+        if selected and selected.id == entry.id then
+            description = ('%s · %s'):format(Kora.lang('c.creator.editing'), description)
+        end
         items[#items + 1] = {
             id = entry.id,
             label = entry.label,
-            description = entry.type == 'for_sale' and Kora.lang('c.creator.for_sale', entry.price or 0)
-                or entry.type == 'owned' and Kora.lang('c.creator.owned', entry.owner or 'unclaimed')
-                or Kora.lang('c.creator.public'),
+            description = description,
             icon = 'Warehouse',
             action = 'select:' .. entry.id,
         }
@@ -160,7 +164,24 @@ local function buildNavigation()
     return navigation
 end
 
-local refresh, fail = fn.appRefresher(APP_ID, buildNavigation)
+local baseRefresh = fn.appRefresher(APP_ID, buildNavigation)
+
+local function appTitle()
+    if selected then return Kora.lang('c.creator.titleEditing', selected.label) end
+    return Kora.lang('c.creator.title')
+end
+
+local function refresh(notice)
+    local title = appTitle()
+    Kora.nui.updateApp(APP_ID, { title = title })
+    local response = baseRefresh(notice)
+    if response.update then response.update.title = title end
+    return response
+end
+
+local function fail(message)
+    return refresh(fn.notice(message, 'destructive'))
+end
 
 local function saveSelected(patch)
     local result, err = Kora.callback.trigger('qbdealership:save', selected.id, patch)
@@ -263,7 +284,7 @@ end
 
 Kora.nui.registerApp({
     id = APP_ID,
-    title = 'Dealership Creator',
+    title = Kora.lang('c.creator.title'),
     icon = 'Warehouse',
     layout = 'standard',
     width = 1200,
@@ -287,7 +308,7 @@ end
 
 local function open()
     while true do
-        Kora.nui.updateApp(APP_ID, { navigation = buildNavigation() })
+        Kora.nui.updateApp(APP_ID, { navigation = buildNavigation(), title = appTitle() })
         Kora.nui.openApp(APP_ID, { viewId = currentView })
         if not pendingTool then break end
         runPendingTool()

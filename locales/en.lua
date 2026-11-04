@@ -14,12 +14,17 @@ return {
             createDealership = 'Create dealership',
             dealerName = 'Name',
             dealerCreate = 'Create',
+            create = 'Create',
+            title = 'Dealership Creator',
+            titleEditing = 'Dealership Creator · %s',
+            editing = 'Editing now',
             save = 'Saved',
             failed = 'Save Failed',
             delete = {
                 title = 'Delete dealership',
                 message = 'Are you sure you want to delete this dealership? This action cannot be undone.',
                 confirmLabel = 'Delete',
+                confirm = 'Delete',
                 pass = 'Deleted',
                 fail = 'Delete Failed',
             },
@@ -35,6 +40,8 @@ return {
                     price = 'Price (if for sale)',
                     owner = 'Owner citizenid (if owned)',
                     description = 'Only kept while Access is set to Owned -- cleared otherwise.',
+                    ownerDesc = 'Only kept while Access is set to Owned -- cleared otherwise.',
+                    save = 'Save changes',
                 },
                 delete = {
                     danger = 'Danger Zone',
@@ -64,13 +71,17 @@ return {
                     priceHead = 'Vehicle Price',
                     sale = 'Sale Price',
                     save = 'Save Price',
-                    current = 'Current Vehicles | Amount %s'
+                    current = 'Current Vehicles | Amount %s',
+                    empty = 'No vehicles added yet.',
                 },
                 add = {
                     vehReq = 'Vehicle is required.',
                     vehExists = 'That vehicle is already added.',
                     vehPrice = 'Vehicle price is required.',
-                }
+                },
+                price = {
+                    vehPrice = 'Vehicle price is required.',
+                },
             },
             placement = {
                 header = 'Vehicle Displays',
@@ -82,6 +93,7 @@ return {
                 },
                 empty = 'No display vehicles yet.',
                 listTitle = 'Current display vehicles',
+                emptyList = 'No display vehicles yet.',
             },
             spawns = {
                 header = 'Vehicle Spawns',
@@ -146,6 +158,7 @@ return {
         },
         management = {
             orders = {
+                error = 'Could not place the order.',
                 stockDesc = 'In Stock: %d ·  $%d each wholesale',
                 vehData = '%s  ·  $%d each',
                 title = 'Order vehicles',
@@ -172,6 +185,9 @@ return {
                 fireConfirm = 'Are you sure you want to remove this employee?',
                 errorRemove = 'Could not remove the employee.',
                 errorAdd = 'Could not add the employee.',
+                addError = 'Could not add the employee.',
+                removeError = 'Could not remove the employee.',
+                added = 'Employee added successfully.',
                 removed = 'Employee removed successfully.',
             },
             permissions = {
@@ -182,10 +198,13 @@ return {
                 granted = 'Permission granted.',
                 revoked = 'Permission revoked.',
                 errorSave = 'Could not save permissions.',
+                saveError = 'Could not save permissions.',
+                saved = 'Permissions saved.',
             },
             funds = {
                 header = 'Dealership Funds',
                 description = 'Manage the funds of this dealership.',
+                amount = 'Amount',
                 currentBalance = 'Current balance',
                 totalIncome = 'Total income',
                 totalSpent = 'Total spent',
@@ -207,6 +226,8 @@ return {
                 employeeDiscount = 'Employee discount (%)',
                 employeeDiscountDescription = 'Discount employees get when buying from this dealership.',
                 save = 'Save settings',
+                saved = 'Settings saved.',
+                saveError = 'Could not save settings.',
             },
             offers = {
                 header = 'Customer Offers',
@@ -246,6 +267,7 @@ return {
             isOffering = '%s is offering to sell you this vehicle.',
             cantOpen = 'Cannot open the sales menu.',
             target = 'Open Sales Menu',
+            searchPlaceholder = 'Type to search vehicles',
         },
         searchPlaceholder = 'Type to search vehicles',
     }
