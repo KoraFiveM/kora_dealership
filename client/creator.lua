@@ -144,7 +144,7 @@ local function vehiclesView()
                     fields = { { id = 'model', label = Kora.lang('c.creator.vehicles.form.veh'), type = 'select', options = loadCatalog(), required = true } },
                     action = { id = 'vehicles:add', label = Kora.lang('c.creator.vehicles.form.add') },
                 },
-                { type = 'list', id = 'vehicle-list', title = Kora.lang('c.creator.vehicles.form.current', #items), layout = 'cards',  items = items, empty = Kora.lang('c.creator.vehicles.form.empty') },
+                { type = 'list', id = 'vehicle-list', title = Kora.lang('c.creator.vehicles.form.current', #items), layout = 'cards', imageFit = 'contain', imageAspect = 'wide', items = items, empty = Kora.lang('c.creator.vehicles.form.empty') },
             },
         },
     }
