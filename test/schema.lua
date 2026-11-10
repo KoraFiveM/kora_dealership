@@ -1,11 +1,11 @@
--- Run from qbdealership: lua5.4 test/schema.lua
-Kora = { sql = { NULL = '\0qbsql:null\0' } }
+-- Run from kora_dealership: lua5.4 test/schema.lua
+Kora = { sql = { NULL = '\0kora_sql:null\0' } }
 dofile('server/schema.lua')
 
 local declared = {}
-for _, spec in ipairs(QBDealershipSchema) do declared[spec.name] = spec end
-assert(#QBDealershipSchema == 3, 'three tables declared')
-assert(QBDealershipSchema[1].name == 'kora_dealerships', 'the parent table comes first for the foreign keys')
+for _, spec in ipairs(KoraDealershipSchema) do declared[spec.name] = spec end
+assert(#KoraDealershipSchema == 3, 'three tables declared')
+assert(KoraDealershipSchema[1].name == 'kora_dealerships', 'the parent table comes first for the foreign keys')
 for _, name in ipairs({ 'kora_dealerships', 'kora_dealership_management', 'kora_dealership_offers' }) do
     assert(declared[name] and #declared[name].columns > 0, name .. ' is declared')
 end
@@ -17,4 +17,4 @@ assert(pdm.vehicles:find('"model":"asbo"', 1, true) and pdm.zone:find('"thicknes
 
 local manifest = assert(io.open('fxmanifest.lua')):read('a')
 assert(manifest:find("'server/schema.lua'", 1, true) and not manifest:find('dealers.sql', 1, true), 'manifest loads the schema, not the sql file')
-print('qbdealership: schema declares its tables and the pdm seed')
+print('kora_dealership: schema declares its tables and the pdm seed')

@@ -1,4 +1,4 @@
-local APP_ID = 'qbdealership:creator'
+local APP_ID = 'kora_dealership:creator'
 local views = DealershipViews
 
 local selected = nil        -- the currently-open dealership record (server's copy)
@@ -20,7 +20,7 @@ local function loadCatalog()
 end
 
 local function dealershipsView()
-    local list = Kora.callback.trigger('qbdealership:list') or {}
+    local list = Kora.callback.trigger('kora_dealership:list') or {}
     local items = {}
     for _, entry in ipairs(list) do
         local description = entry.type == 'for_sale' and Kora.lang('c.creator.for_sale', entry.price or 0)
@@ -184,21 +184,21 @@ local function fail(message)
 end
 
 local function saveSelected(patch)
-    local result, err = Kora.callback.trigger('qbdealership:save', selected.id, patch)
+    local result, err = Kora.callback.trigger('kora_dealership:save', selected.id, patch)
     if not result then return fail(err or Kora.lang('c.creator.failed')) end
     selected = result
     return refresh(fn.notice('Saved.'))
 end
 
 local function createDealership(label)
-    local record, err = Kora.callback.trigger('qbdealership:create', label)
+    local record, err = Kora.callback.trigger('kora_dealership:create', label)
     if not record then return fail(err or Kora.lang('c.creator.failed')) end
     selected, currentView = record, 'data'
     return refresh(fn.notice(Kora.lang('c.creator.save')))
 end
 
 local function selectDealership(id)
-    local record, err = Kora.callback.trigger('qbdealership:get', id)
+    local record, err = Kora.callback.trigger('kora_dealership:get', id)
     if not record then return fail(err or Kora.lang('c.creator.failed')) end
     selected, currentView = record, 'data'
     return refresh()
@@ -211,7 +211,7 @@ local function deleteSelected()
     })
     if not confirmation or not confirmation.confirmed then return refresh() end
 
-    local ok, err = Kora.callback.trigger('qbdealership:delete', selected.id)
+    local ok, err = Kora.callback.trigger('kora_dealership:delete', selected.id)
     if not ok then return fail(err or Kora.lang('c.creator.delete.fail')) end
     selected, currentView = nil, 'dealerships'
     return refresh(fn.notice(Kora.lang('c.creator.delete.pass')))

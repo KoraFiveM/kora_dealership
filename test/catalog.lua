@@ -1,4 +1,4 @@
--- Run from qbdealership: lua5.4 test/catalog.lua
+-- Run from kora_dealership: lua5.4 test/catalog.lua
 local app, reads = nil, 0
 exports = { kora_core = { allShared = function(_, registry)
     assert(registry == 'vehicles')
@@ -14,8 +14,8 @@ end }
 Kora = {
     lang = function(key) return key end,
     callback = { trigger = function(name)
-        if name == 'qbdealership:list' then return {} end
-        assert(name == 'qbdealership:get')
+        if name == 'kora_dealership:list' then return {} end
+        assert(name == 'kora_dealership:get')
         return { id = 'shop', label = 'Shop', type = 'public', vehicles = {} }
     end },
     nui = { registerApp = function(definition) app = definition end, updateApp = function() end },
@@ -30,4 +30,4 @@ assert(#catalog == 3)
 assert(catalog[1].value == 'adder' and catalog[1].label == 'Adder')
 assert(catalog[2].value == 'sultan' and catalog[3].value == 'bison' and catalog[3].label == 'bison')
 assert(options() == catalog and reads == 1, 'the existing catalog cache is retained')
-print('qbdealership: native vehicle records retain model values, labels, sorting and caching')
+print('kora_dealership: native vehicle records retain model values, labels, sorting and caching')

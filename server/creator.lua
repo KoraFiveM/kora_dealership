@@ -19,7 +19,7 @@ local function adminOnly(src)
     return fn.fail('Admin permission required.')
 end
 
-Kora.callback.register('qbdealership:list', function(src)
+Kora.callback.register('kora_dealership:list', function(src)
     local allowed, err = adminOnly(src)
     if not allowed then return false, err end
 
@@ -31,7 +31,7 @@ Kora.callback.register('qbdealership:list', function(src)
     return list
 end)
 
-Kora.callback.register('qbdealership:get', function(src, id)
+Kora.callback.register('kora_dealership:get', function(src, id)
     local allowed, err = adminOnly(src)
     if not allowed then return false, err end
 
@@ -40,7 +40,7 @@ Kora.callback.register('qbdealership:get', function(src, id)
     return record
 end)
 
-Kora.callback.register('qbdealership:create', function(src, label)
+Kora.callback.register('kora_dealership:create', function(src, label)
     local allowed, err = adminOnly(src)
     if not allowed then return false, err end
 
@@ -61,7 +61,7 @@ Kora.callback.register('qbdealership:create', function(src, label)
     return record
 end)
 
-Kora.callback.register('qbdealership:delete', function(src, id)
+Kora.callback.register('kora_dealership:delete', function(src, id)
     local allowed, err = adminOnly(src)
     if not allowed then return false, err end
     if type(id) ~= 'string' or not Dealerships[id] then return fn.fail('Unknown dealership.') end
@@ -73,14 +73,14 @@ Kora.callback.register('qbdealership:delete', function(src, id)
     return true
 end)
 
-Kora.callback.register('qbdealership:save', function(src, id, patch)
+Kora.callback.register('kora_dealership:save', function(src, id, patch)
     local allowed, err = adminOnly(src)
     if not allowed then return false, err end
     if type(id) ~= 'string' then return fn.fail('Unknown dealership.') end
     return fn.patchDealership(id, patch)
 end)
 
-Kora.callback.register('qbdealership:swap', function(src, dealerId, index, model)
+Kora.callback.register('kora_dealership:swap', function(src, dealerId, index, model)
     local record = type(dealerId) == 'string' and Dealerships[dealerId]
     if not record then return fn.fail('Unknown dealership.') end
 

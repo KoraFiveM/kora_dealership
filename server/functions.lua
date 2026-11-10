@@ -1,5 +1,5 @@
 Dealerships, Swaps, DealerData, fn = {}, {}, {}, {}
-Kora.print.debug('qbdealership server/functions.lua loaded.')
+Kora.print.debug('kora_dealership server/functions.lua loaded.')
 
 local publicStock = 9999
 local maxSalesLog = 500
@@ -9,7 +9,7 @@ local defaultSettings = { maxPriceOverride = 10, commission = 5, employeeDiscoun
 fn.defaultSettings = defaultSettings
 
 function fn.notify(src, message, class)
-    Kora.notify.send(src, { title = 'QB Dealerships', message = message, type = class })
+    Kora.notify.send(src, { title = 'Kora Dealerships', message = message, type = class })
 end
 
 function fn.fail(message)
@@ -336,7 +336,7 @@ function fn.updateManagement(dealer, changes)
     DealerData[dealer] = updated
     local ok, err = writeManagement(dealer, updated)
     if not ok then
-        print(('[qbdealership] management save FAILED for %s: %s'):format(dealer, tostring(err)))
+        print(('[kora_dealership] management save FAILED for %s: %s'):format(dealer, tostring(err)))
         DealerData[dealer] = previous
         return false
     end
@@ -658,18 +658,18 @@ end
 
 CreateThread(function()
     if not Kora.sql.ready(60000) then
-        print('^1[qbdealership]^7 kora_sql was unavailable; dealerships are not loaded until restart.')
+        print('^1[kora_dealership]^7 kora_sql was unavailable; dealerships are not loaded until restart.')
         return
     end
-    if not Config.UsePDM then QBDealershipSchema[1].seed = nil end
-    local reports, schemaErr = Kora.sql.ensureTables(QBDealershipSchema)
+    if not Config.UsePDM then KoraDealershipSchema[1].seed = nil end
+    local reports, schemaErr = Kora.sql.ensureTables(KoraDealershipSchema)
     if schemaErr then
-        print(('^1[qbdealership]^7 schema failed: %s'):format(tostring(schemaErr)))
+        print(('^1[kora_dealership]^7 schema failed: %s'):format(tostring(schemaErr)))
         return
     end
     for _, report in ipairs(reports or {}) do
         for _, warning in ipairs(report.warnings or {}) do
-            print(('^3[qbdealership]^7 %s: %s'):format(tostring(report.table), tostring(warning)))
+            print(('^3[kora_dealership]^7 %s: %s'):format(tostring(report.table), tostring(warning)))
         end
     end
     load()

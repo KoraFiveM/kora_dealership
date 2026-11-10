@@ -67,7 +67,7 @@ local function sell(src, request)
     local finalPrice, priceErr = priceWithinBounds(dealer, entry, request.price)
     if not finalPrice then return fn.fail(priceErr) end
 
-    local answer = Kora.callback.trigger(customer, 'qbdealership:sales:confirmPurchase', {
+    local answer = Kora.callback.trigger(customer, 'kora_dealership:sales:confirmPurchase', {
         seller = fn.playerName(src),
         vehicle = entry.name,
         price = finalPrice,
@@ -111,7 +111,7 @@ local function sell(src, request)
         customerName = fn.playerName(customer),
     })
     if not recorded then
-        print(('[qbdealership] failed to record sale of %s at %s for $%d'):format(entry.model, dealer, finalPrice))
+        print(('[kora_dealership] failed to record sale of %s at %s for $%d'):format(entry.model, dealer, finalPrice))
     end
 
     return {
@@ -133,7 +133,7 @@ local function confirmSale(src, dealer, index, customer, model, price)
     if busy[src] == lock then busy[src] = nil end
 
     if not ok then
-        print(('[qbdealership] sale error for %s: %s'):format(src, tostring(result)))
+        print(('[kora_dealership] sale error for %s: %s'):format(src, tostring(result)))
         return fn.fail('Could not complete the sale.')
     end
     return result, message
@@ -143,6 +143,6 @@ local function onPlayerDropped()
     busy[source] = nil
 end
 
-Kora.callback.register('qbdealership:sales:open', openSales)
-Kora.callback.register('qbdealership:sales:confirm', confirmSale)
+Kora.callback.register('kora_dealership:sales:open', openSales)
+Kora.callback.register('kora_dealership:sales:confirm', confirmSale)
 AddEventHandler('playerDropped', onPlayerDropped)

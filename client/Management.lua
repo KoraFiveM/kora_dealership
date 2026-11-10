@@ -1,6 +1,6 @@
 fn.waitForDealerships()
 
-local APP_ID = 'qbdealership:management'
+local APP_ID = 'kora_dealership:management'
 local views = DealershipViews
 local indexId = nil
 local dealerId = nil
@@ -195,7 +195,7 @@ local function storeOffers(result)
 end
 
 local function loadOffers()
-    local ok, result, err = pcall(Kora.callback.trigger, 'qbdealership:management:getOffers', dealerId, indexId)
+    local ok, result, err = pcall(Kora.callback.trigger, 'kora_dealership:management:getOffers', dealerId, indexId)
     if not ok or not result then
         fn.notify((ok and err) or 'Could not load offers.')
         return false
@@ -309,7 +309,7 @@ end
 local refresh, fail = fn.appRefresher(APP_ID, buildNavigation)
 
 local function saveRecord(patch)
-    local result, err = Kora.callback.trigger('qbdealership:management:savePlacement', dealerId, indexId, patch)
+    local result, err = Kora.callback.trigger('kora_dealership:management:savePlacement', dealerId, indexId, patch)
     if not result then return fail(err or Kora.lang('c.management.saveError')) end
     record = result
     return refresh(fn.notice(Kora.lang('c.management.save')))
@@ -326,7 +326,7 @@ local function onOfferAction(actionId)
     local decision, offerId = actionId:match('^offers:(%a+):(%d+)$')
     if decision ~= 'accept' and decision ~= 'deny' then return nil end
 
-    local result, err = Kora.callback.trigger('qbdealership:management:resolveOffer', dealerId, indexId, tonumber(offerId), decision)
+    local result, err = Kora.callback.trigger('kora_dealership:management:resolveOffer', dealerId, indexId, tonumber(offerId), decision)
     if not result then
         loadOffers()
         return fail(err or Kora.lang('c.management.offers.updateError'))
@@ -337,7 +337,7 @@ end
 
 local function onEmployeeAction(actionId, values)
     if actionId == 'employees:add' then
-        local list, err = Kora.callback.trigger('qbdealership:management:addEmployee', dealerId, indexId, values.serverId)
+        local list, err = Kora.callback.trigger('kora_dealership:management:addEmployee', dealerId, indexId, values.serverId)
         if not list then return fail(err or Kora.lang('c.management.employees.addError')) end
         employees = list
         return refresh(fn.notice(Kora.lang('c.management.employees.added')))
@@ -345,7 +345,7 @@ local function onEmployeeAction(actionId, values)
 
     local removedId = actionId:match('^employees:remove:(.+)$')
     if removedId then
-        local list, err = Kora.callback.trigger('qbdealership:management:removeEmployee', dealerId, indexId, removedId)
+        local list, err = Kora.callback.trigger('kora_dealership:management:removeEmployee', dealerId, indexId, removedId)
         if not list then return fail(err or Kora.lang('c.management.employees.removeError')) end
         employees = list
         permissions[removedId] = nil
@@ -360,7 +360,7 @@ local function onEmployeeAction(actionId, values)
         end
         if not hadPermission then granted[#granted + 1] = permission end
 
-        local map, err = Kora.callback.trigger('qbdealership:management:savePermissions', dealerId, indexId, employeeId, granted)
+        local map, err = Kora.callback.trigger('kora_dealership:management:savePermissions', dealerId, indexId, employeeId, granted)
         if not map then return fail(err or Kora.lang('c.management.permissions.saveError')) end
         permissions = map
         return refresh(fn.notice(Kora.lang('c.management.permissions.saved')))
@@ -369,7 +369,7 @@ end
 
 local function onBusinessAction(actionId, values)
     if actionId == 'settings:save' then
-        local saved, err = Kora.callback.trigger('qbdealership:management:saveSettings', dealerId, indexId, values)
+        local saved, err = Kora.callback.trigger('kora_dealership:management:saveSettings', dealerId, indexId, values)
         if not saved then return fail(err or Kora.lang('c.management.settings.saveError')) end
         settings = saved
         return refresh(fn.notice(Kora.lang('c.management.settings.saved')))
@@ -377,7 +377,7 @@ local function onBusinessAction(actionId, values)
 
     if actionId == 'funds:deposit' or actionId == 'funds:withdraw' then
         local isDeposit = actionId == 'funds:deposit'
-        local result, err = Kora.callback.trigger('qbdealership:management:' .. (isDeposit and 'depositFunds' or 'withdrawFunds'), dealerId, indexId, values.amount)
+        local result, err = Kora.callback.trigger('kora_dealership:management:' .. (isDeposit and 'depositFunds' or 'withdrawFunds'), dealerId, indexId, values.amount)
         if not result then return fail(err or Kora.lang('c.management.funds.error')) end
         funds.balance = result.balance or funds.balance
         return refresh(fn.notice(isDeposit and Kora.lang('c.management.funds.depositSuccess') or Kora.lang('c.management.funds.withdrawSuccess')))
@@ -386,7 +386,7 @@ end
 
 local function onOrderAction(actionId, values)
     if actionId ~= 'orders:place' or not can('orderVehicles') then return nil end
-    local result, err = Kora.callback.trigger('qbdealership:management:orderVehicle', dealerId, indexId, values.model, values.quantity)
+    local result, err = Kora.callback.trigger('kora_dealership:management:orderVehicle', dealerId, indexId, values.model, values.quantity)
     if not result then return fail(err or Kora.lang('c.management.orders.error')) end
     record = result.record
     funds.balance = (funds.balance or 0) - result.cost
@@ -435,7 +435,7 @@ Kora.nui.registerApp({
 })
 
 local function saveAimedRecord(patch)
-    local result, err = Kora.callback.trigger('qbdealership:management:savePlacement', dealerId, indexId, patch)
+    local result, err = Kora.callback.trigger('kora_dealership:management:savePlacement', dealerId, indexId, patch)
     if result then record = result else fn.notify(err or Kora.lang('c.management.saveError')) end
 end
 
@@ -447,7 +447,7 @@ local function permissionSet(permissionsByEmployee)
 end
 
 local function loadManagementData()
-    local data, err = Kora.callback.trigger('qbdealership:management:openOwnerManagement', dealerId, indexId)
+    local data, err = Kora.callback.trigger('kora_dealership:management:openOwnerManagement', dealerId, indexId)
     if not data then
         fn.notify(err or Kora.lang('c.management.noAccess'))
         return false

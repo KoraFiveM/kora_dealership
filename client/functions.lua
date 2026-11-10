@@ -180,7 +180,7 @@ function fn.keepTargetZones(options)
             if ok and zoneId then
                 zoneIds[dealer][#zoneIds[dealer] + 1] = zoneId
             elseif not ok then
-                print(('[qbdealership] could not add a "%s" target: %s'):format(options.label, tostring(zoneId)))
+                print(('[kora_dealership] could not add a "%s" target: %s'):format(options.label, tostring(zoneId)))
             end
         end
     end

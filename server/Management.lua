@@ -432,20 +432,20 @@ local function autoAcceptLoop()
     while true do
         Wait(math.max(10, tonumber(Config.autoConfirmCheckSeconds) or 60) * 1000)
         local ok, err = pcall(processDueOffers)
-        if not ok then print(('^1[qbdealership] auto-accept failed: %s^7'):format(tostring(err))) end
+        if not ok then print(('^1[kora_dealership] auto-accept failed: %s^7'):format(tostring(err))) end
     end
 end
 
 CreateThread(autoAcceptLoop)
 
-Kora.callback.register('qbdealership:management:openOwnerManagement', openOwnerManagement)
-Kora.callback.register('qbdealership:management:addEmployee', addEmployee)
-Kora.callback.register('qbdealership:management:removeEmployee', removeEmployee)
-Kora.callback.register('qbdealership:management:savePermissions', savePermissions)
-Kora.callback.register('qbdealership:management:saveSettings', saveSettings)
-Kora.callback.register('qbdealership:management:savePlacement', savePlacement)
-Kora.callback.register('qbdealership:management:depositFunds', depositFunds)
-Kora.callback.register('qbdealership:management:withdrawFunds', withdrawFunds)
-Kora.callback.register('qbdealership:management:orderVehicle', orderVehicle)
-Kora.callback.register('qbdealership:management:getOffers', getOffers)
-Kora.callback.register('qbdealership:management:resolveOffer', resolveOffer)
+Kora.callback.register('kora_dealership:management:openOwnerManagement', openOwnerManagement)
+Kora.callback.register('kora_dealership:management:addEmployee', addEmployee)
+Kora.callback.register('kora_dealership:management:removeEmployee', removeEmployee)
+Kora.callback.register('kora_dealership:management:savePermissions', savePermissions)
+Kora.callback.register('kora_dealership:management:saveSettings', saveSettings)
+Kora.callback.register('kora_dealership:management:savePlacement', savePlacement)
+Kora.callback.register('kora_dealership:management:depositFunds', depositFunds)
+Kora.callback.register('kora_dealership:management:withdrawFunds', withdrawFunds)
+Kora.callback.register('kora_dealership:management:orderVehicle', orderVehicle)
+Kora.callback.register('kora_dealership:management:getOffers', getOffers)
+Kora.callback.register('kora_dealership:management:resolveOffer', resolveOffer)

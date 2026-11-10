@@ -1,6 +1,6 @@
 fn.waitForDealerships()
 
-local APP_ID = 'qbdealership:sales'
+local APP_ID = 'kora_dealership:sales'
 
 local dealerId, indexId = nil, nil
 local context = { vehicles = {}, maxPriceOverride = 0, nearby = {} }
@@ -87,7 +87,7 @@ local function onAction(actionId, actionContext)
     local values = actionContext and actionContext.value or {}
 
     if actionId == 'sell:confirm' then
-        local sale, err = Kora.callback.trigger('qbdealership:sales:confirm', dealerId, indexId, values.customer, values.model, values.price)
+        local sale, err = Kora.callback.trigger('kora_dealership:sales:confirm', dealerId, indexId, values.customer, values.model, values.price)
         if not sale then return fail(err or Kora.lang('c.sales.noComplete')) end
 
         fn.notify(('Sold to %s for $%d.'):format(sale.customer, sale.amount), 'success')
@@ -107,7 +107,7 @@ local function onChange(actionId, changeContext)
     end
 end
 
-Kora.callback.register('qbdealership:sales:confirmPurchase', function(details)
+Kora.callback.register('kora_dealership:sales:confirmPurchase', function(details)
     details = type(details) == 'table' and details or {}
     local answer = Kora.nui.openInputDialog({
         { id = 'payment', label = 'Pay with', type = 'select', options = Config.paymentMethods, required = true },
@@ -136,7 +136,7 @@ local function openSales(dealer, index)
     opening = true
 
     fn.withCleanup(function()
-        local result, err = Kora.callback.trigger('qbdealership:sales:open', dealer, index)
+        local result, err = Kora.callback.trigger('kora_dealership:sales:open', dealer, index)
         if not result then return fn.notify(err or Kora.lang('c.sales.cantOpen')) end
 
         dealerId, context, indexId = dealer, result, index

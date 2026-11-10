@@ -1,8 +1,8 @@
 fn.waitForDealerships()
 
-local SHOWROOM_APP_ID = 'qbdealership:showroom'
-local OFFER_AMOUNT_APP_ID = 'qbdealership:offer-amount'
-local OFFER_TERMS_APP_ID = 'qbdealership:offer-terms'
+local SHOWROOM_APP_ID = 'kora_dealership:showroom'
+local OFFER_AMOUNT_APP_ID = 'kora_dealership:offer-amount'
+local OFFER_TERMS_APP_ID = 'kora_dealership:offer-terms'
 local DEFAULT_VIEW = 'showroom'
 
 local zones = {}      -- dealer -> dealership zone
@@ -264,7 +264,7 @@ local function runOfferFlow(vehicle)
     openOfferStep(OFFER_TERMS_APP_ID, 'terms', offerTermsNavigation(vehicle))
     if not offerInput.submitted then return end
 
-    local ok, err = Kora.callback.trigger('qbdealership:makeOffer', vehicle.dealer, vehicle.index, vehicle.model, offerInput.amount, offerInput.terms)
+    local ok, err = Kora.callback.trigger('kora_dealership:makeOffer', vehicle.dealer, vehicle.index, vehicle.model, offerInput.amount, offerInput.terms)
     if not ok then return fn.notify(err or Kora.lang('c.customer.test.error')) end
     fn.notify('Your offer was sent.', 'success')
 end
@@ -304,12 +304,12 @@ local function startTestDrive(vehicle)
         local origin = GetEntityCoords(ped)
         local originHeading = GetEntityHeading(ped)
 
-        local netId, err = Kora.callback.trigger('qbdealership:testDrive', vehicle.dealer, vehicle.index, vehicle.model)
+        local netId, err = Kora.callback.trigger('kora_dealership:testDrive', vehicle.dealer, vehicle.index, vehicle.model)
         if not netId then return fn.notify(err or Kora.lang('c.customer.test.error')) end
 
         local testVehicle = fn.waitForNetworkVehicle(netId, 5000)
         if not testVehicle then
-            TriggerServerEvent('qbdealership:server:testDriveEnded')
+            TriggerServerEvent('kora_dealership:server:testDriveEnded')
             return fn.notify(Kora.lang('c.customer.test.error'))
         end
 
@@ -320,14 +320,14 @@ local function startTestDrive(vehicle)
         checkTestDrives()
         Citizen.Await(drive.ended)
 
-        TriggerServerEvent('qbdealership:server:testDriveEnded')
+        TriggerServerEvent('kora_dealership:server:testDriveEnded')
         Kora.visuals.fade(origin)
         SetEntityHeading(PlayerPedId(), originHeading)
     end)
 end
 
 local function purchaseVehicle(vehicle)
-    local netId, err = Kora.callback.trigger('qbdealership:confirmPurchase', vehicle.dealer, vehicle.index, vehicle.model)
+    local netId, err = Kora.callback.trigger('kora_dealership:confirmPurchase', vehicle.dealer, vehicle.index, vehicle.model)
     if not netId then return fn.notify(err or Kora.lang('c.customer.test.error')) end
 
     local purchased = fn.waitForNetworkVehicle(netId, 5000)
@@ -341,7 +341,7 @@ local vehicleActions = {
 }
 
 local function swapDisplay(ctx, model, successMessage, failureMessage)
-    local ok, err = Kora.callback.trigger('qbdealership:swap', ctx.dealer, ctx.index, model)
+    local ok, err = Kora.callback.trigger('kora_dealership:swap', ctx.dealer, ctx.index, model)
     if not ok then return { notice = fn.notice(err or failureMessage, 'destructive') } end
     return { update = { navigation = showroomNavigation(ctx) }, notice = fn.notice(successMessage) }
 end

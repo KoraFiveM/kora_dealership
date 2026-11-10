@@ -18,7 +18,7 @@ Feature: kora_dealership — Vehicles
     Checklist test: In creator set name, access (Public / For sale with price / Owned with owner citizenid); save shows 'Saved'.
     """
     When I manually: run /dealershipcreator
-    Then the "qbdealership:creator" app should be open
+    Then the "kora_dealership:creator" app should be open
     When I manually: open a dealership in the creator
     And I manually: set the dealership name
     And I manually: set access to Public, then For sale with a price, then Owned with an owner citizenid
@@ -31,7 +31,7 @@ Feature: kora_dealership — Vehicles
     Checklist test: Zone Management: Draw zone, place polygon points, Redraw/Clear zone; customers must be inside it to use the shop.
     """
     When I manually: run /dealershipcreator
-    Then the "qbdealership:creator" app should be open
+    Then the "kora_dealership:creator" app should be open
     When I manually: open a dealership, go to Zone Management and click Draw zone
     And I manually: place several polygon points
     Then I confirm: the zone polygon is drawn
@@ -50,7 +50,7 @@ Feature: kora_dealership — Vehicles
     Checklist test: Vehicle Management: Add Vehicles with price, edit sale price (Save Price), duplicate vehicle rejected.
     """
     When I manually: run /dealershipcreator
-    Then the "qbdealership:creator" app should be open
+    Then the "kora_dealership:creator" app should be open
     When I manually: open a dealership and go to Vehicle Management
     And I manually: click Add Vehicles and add a vehicle with a price
     Then I confirm: the vehicle appears in the list with its price
@@ -65,7 +65,7 @@ Feature: kora_dealership — Vehicles
     Checklist test: Place a display vehicle and Add a spawn point by aiming; they appear in current lists and can be deleted.
     """
     When I manually: run /dealershipcreator
-    Then the "qbdealership:creator" app should be open
+    Then the "kora_dealership:creator" app should be open
     When I manually: open a dealership
     And I manually: place a display vehicle by aiming
     And I manually: add a spawn point by aiming
@@ -79,7 +79,7 @@ Feature: kora_dealership — Vehicles
     Checklist test: Dealer Management / Sales Zones: add management and sale zones by aiming; entries listed and removable.
     """
     When I manually: run /dealershipcreator
-    Then the "qbdealership:creator" app should be open
+    Then the "kora_dealership:creator" app should be open
     When I manually: open Dealer Management / Sales Zones
     And I manually: add a management zone by aiming
     And I manually: add a sale zone by aiming
@@ -93,7 +93,7 @@ Feature: kora_dealership — Vehicles
     Checklist test: Danger Zone > Delete dealership; confirmation dialog, then it is removed.
     """
     When I manually: run /dealershipcreator
-    Then the "qbdealership:creator" app should be open
+    Then the "kora_dealership:creator" app should be open
     When I manually: open a test dealership and go to Danger Zone
     And I manually: click Delete dealership
     Then I confirm: a confirmation dialog appears saying 'Are you sure you want to delete this dealership? This action cannot be undone.'
@@ -117,7 +117,7 @@ Feature: kora_dealership — Vehicles
     """
     When I manually: go to a public dealership and look at a display vehicle
     And I select the "Browse dealership" target option
-    Then the "qbdealership:showroom" app opens
+    Then the "kora_dealership:showroom" app opens
     And I confirm: the menu lists vehicles grouped by class
     When I manually: type in the search field 'Type to search vehicles'
     Then I confirm: the vehicle list is filtered by my search
@@ -191,10 +191,10 @@ Feature: kora_dealership — Vehicles
     """
     When I manually: go to an owned dealership showroom
     And I manually: click Make offer on a vehicle
-    Then the "qbdealership:offer-amount" app opens
+    Then the "kora_dealership:offer-amount" app opens
     And I confirm: Step 1 asks for an offer amount
     When I manually: enter an amount and continue
-    Then the "qbdealership:offer-terms" app opens
+    Then the "kora_dealership:offer-terms" app opens
     And I confirm: Step 2 shows the terms
     When I manually: submit the offer
     Then I should see a notification containing "Your offer was sent."
@@ -208,7 +208,7 @@ Feature: kora_dealership — Vehicles
     """
     When I manually: go to an owned dealership management point as its owner or an employee
     And I select the "Open Dealer Management" target option
-    Then the "qbdealership:management" app opens
+    Then the "kora_dealership:management" app opens
     And I confirm: the sections shown match the permissions of my role
 
   @kora_dealership @checklist @checklist:kora_dealership:employees @cat:vehicles
@@ -217,7 +217,7 @@ Feature: kora_dealership — Vehicles
     Checklist test: Employee Management: add by server ID, see Current employees, Remove employee with confirmation.
     """
     When I manually: open Dealer Management as owner and go to Employee Management
-    Then the "qbdealership:management" app should be open
+    Then the "kora_dealership:management" app should be open
     When I manually: add an employee by entering a second player's server ID
     Then I confirm: the new employee appears under Current employees
     When I manually: click Remove employee on that employee
@@ -231,7 +231,7 @@ Feature: kora_dealership — Vehicles
     Checklist test: Permissions: toggle Sell vehicles, Handle offers, Order vehicles, Manage display; employee without access sees 'no access'.
     """
     When I manually: open Dealer Management as owner and go to Permissions for an employee
-    Then the "qbdealership:management" app should be open
+    Then the "kora_dealership:management" app should be open
     When I manually: toggle Sell vehicles, Handle offers, Order vehicles and Manage display and save
     Then I confirm: each toggle state is saved
     When I manually: ask the employee to open Dealer Management and visit a section whose permission is off
@@ -243,7 +243,7 @@ Feature: kora_dealership — Vehicles
     Checklist test: Funds page: shows balance, income, spent; Deposit funds from your bank and Withdraw funds to bank.
     """
     When I manually: open Dealer Management as owner and go to the Funds page
-    Then the "qbdealership:management" app should be open
+    Then the "kora_dealership:management" app should be open
     And I confirm: the Funds page shows balance, income and spent
     When I manually: deposit funds from my bank
     Then I confirm: the dealership balance increases and my bank balance decreases by the same amount
@@ -256,7 +256,7 @@ Feature: kora_dealership — Vehicles
     Checklist test: Order vehicles page: pick vehicle and quantity (max 10); paid at 70% wholesale from dealership funds, stock increases.
     """
     When I manually: open Dealer Management as owner or employee and go to Order vehicles
-    Then the "qbdealership:management" app should be open
+    Then the "kora_dealership:management" app should be open
     When I manually: pick a vehicle and try a quantity above 10
     Then I confirm: the quantity cannot exceed 10
     When I manually: submit an order with a quantity of 10 or less
@@ -269,7 +269,7 @@ Feature: kora_dealership — Vehicles
     Checklist test: Settings: max price override %, commission %, employee discount %; Save settings.
     """
     When I manually: open Dealer Management as owner and go to Settings
-    Then the "qbdealership:management" app should be open
+    Then the "kora_dealership:management" app should be open
     When I manually: set max price override %, commission % and employee discount % and click Save settings
     Then I confirm: a success confirmation is shown
     When I manually: reopen Settings
@@ -281,7 +281,7 @@ Feature: kora_dealership — Vehicles
     Checklist test: Offers page: pending and history lists; Accept (vehicle delivered to customer garage, funds credited) or Deny with confirmation.
     """
     When I manually: open Dealer Management as owner or employee and go to the Offers page
-    Then the "qbdealership:management" app should be open
+    Then the "kora_dealership:management" app should be open
     And I confirm: the pending and history lists are shown
     When I manually: accept a pending offer
     Then I confirm: the vehicle is delivered to the customer's garage
@@ -298,7 +298,7 @@ Feature: kora_dealership — Vehicles
     """
     When I manually: go to an owned dealership sale zone with a second player standing nearby
     And I select the "Open Sales Menu" target option
-    Then the "qbdealership:sales" app opens
+    Then the "kora_dealership:sales" app opens
     When I manually: pick the nearby customer and a vehicle
     And I manually: enter a price within the allowed range and click Offer to customer
     Then I confirm: the offer is sent to the customer

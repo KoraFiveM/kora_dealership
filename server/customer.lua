@@ -1,4 +1,4 @@
-Kora.print.debug('qbdealership server/customer.lua loaded.')
+Kora.print.debug('kora_dealership server/customer.lua loaded.')
 local testDrives = {}
 
 local function endTestDrive(src)
@@ -159,10 +159,10 @@ local function makeOffer(src, dealer, index, model, amount, terms)
     return true
 end
 
-Kora.callback.register('qbdealership:testDrive', testDrive)
-Kora.callback.register('qbdealership:confirmPurchase', confirmPurchase)
-Kora.callback.register('qbdealership:makeOffer', makeOffer)
+Kora.callback.register('kora_dealership:testDrive', testDrive)
+Kora.callback.register('kora_dealership:confirmPurchase', confirmPurchase)
+Kora.callback.register('kora_dealership:makeOffer', makeOffer)
 
-RegisterNetEvent('qbdealership:server:testDriveEnded', onTestDriveEnded)
+RegisterNetEvent('kora_dealership:server:testDriveEnded', onTestDriveEnded)
 AddEventHandler('playerDropped', onPlayerDropped)
 AddEventHandler('onResourceStop', onResourceStop)
