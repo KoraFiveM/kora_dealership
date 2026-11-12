@@ -1,0 +1,56 @@
+{
+  "resource": "kora_dealership",
+  "standardsRevision": "2026-11-12.1",
+  "realms": {
+    "client": [
+      "client/Management.lua",
+      "client/creator.lua",
+      "client/customer.lua",
+      "client/functions.lua",
+      "client/sales.lua",
+      "client/views.lua"
+    ],
+    "server": [
+      "server/Management.lua",
+      "server/creator.lua",
+      "server/customer.lua",
+      "server/functions.lua",
+      "server/sales.lua",
+      "server/schema.lua"
+    ],
+    "shared": [
+      "config.lua",
+      "locales/en.lua",
+      "shared/functions.lua"
+    ],
+    "manifest": [
+      "fxmanifest.lua"
+    ],
+    "test": [
+      "test/catalog.lua",
+      "test/purchased_event.lua",
+      "test/schema.lua"
+    ]
+  },
+  "exclude": [
+    ".git/*",
+    ".github/*",
+    ".standards/*",
+    "node_modules/*",
+    "**/node_modules/*",
+    "vendor/*",
+    "**/vendor/*",
+    "web/*",
+    "ui/*",
+    "html/*",
+    "dist/*",
+    "artifacts/*",
+    "runtime/*",
+    "txData/*",
+    "storage/*",
+    "stream/*",
+    "docs/*",
+    "__pycache__/*",
+    "modules/lookup/data/*"
+  ]
+}
