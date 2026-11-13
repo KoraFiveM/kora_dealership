@@ -4,7 +4,7 @@ lua54 'yes'
 
 name 'kora_dealership'
 provide 'qb-vehicleshop'
-author 'qbcore2'
+author 'kora'
 version '0.2.1'
 description 'Dealership creator: build dealership zones, vehicle lists, placements, and spawn points via the AppShell'
 
@@ -15,7 +15,7 @@ dependency 'kora_core'
 shared_scripts {
     '@kora_lib/init.lua',
     '@kora_core/init.lua',
-    'config.lua',
+    'shared/config.lua',
     'shared/functions.lua'
 }
 

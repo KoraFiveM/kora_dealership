@@ -4,7 +4,7 @@ local function deleteAction(id)
 end
 
 local function coordsLabel(coords)
-    return Kora.lang('s.coords'):format(coords.x, coords.y, coords.z)
+    return Kora.lang('s.coords', coords.x, coords.y, coords.z)
 end
 
 local function placementsView(record)
@@ -42,7 +42,7 @@ local function spawnsView(record)
     local items = {}
     for index, spawn in ipairs(record.spawns) do
         items[#items + 1] = {
-            id = tostring(index), label = ('Spawn %d'):format(index), icon = 'MapPin',
+            id = tostring(index), label = Kora.lang('c.creator.spawns.label', index), icon = 'MapPin',
             description = coordsLabel(spawn.coords),
             actions = { deleteAction('spawns:remove:' .. index) },
         }
@@ -65,7 +65,7 @@ local function pointZonesView(spec, record, keepLast)
     local entries = record[spec.field] or {}
     for index, entry in ipairs(entries) do
         items[#items + 1] = {
-            id = tostring(index), label = ('%s %d'):format(spec.noun, index), icon = 'MapPin',
+            id = tostring(index), label = Kora.lang('c.creator.zone.index', spec.noun, index), icon = 'MapPin',
             description = coordsLabel(entry.coords),
             -- keepLast hides the delete button on the final remaining entry
             actions = not (keepLast and #entries <= 1) and { deleteAction(spec.id .. ':remove:' .. index) } or nil,

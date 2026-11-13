@@ -13,13 +13,13 @@ end
 -- Resolves the dealership, validates the player is at the display vehicle, and finds the model.
 local function checkCustomer(src, dealer, index, model)
     local record = type(dealer) == 'string' and Dealerships[dealer]
-    if not record then return nil, 'Unknown dealership.' end
+    if not record then return nil, Kora.lang('s.errors.unknown_dealership') end
 
     local near, err = fn.nearPoint(src, record, 'placements', index, Config.testDriveDistance)
     if not near then return nil, err end
 
     local entry = fn.findVehicle(record, model)
-    if not entry then return nil, 'That vehicle is not sold here.' end
+    if not entry then return nil, Kora.lang('s.errors.vehicle_not_sold') end
     return record, entry
 end
 
@@ -28,14 +28,14 @@ local function expireTestDrive(src, data)
 end
 
 local function testDrive(src, dealer, index, model)
-    if testDrives[src] then return fn.fail('You are already on a test drive.') end
-    if not fn.rateLimit(src, 'testDrive', Config.rateLimits.testDrive) then return fn.fail('Slow down.') end
+    if testDrives[src] then return fn.fail(Kora.lang('s.errors.test_drive_active')) end
+    if not fn.rateLimit(src, 'testDrive', Config.rateLimits.testDrive) then return fn.fail(Kora.lang('s.errors.slow_down')) end
 
     local record, entry = checkCustomer(src, dealer, index, model)
     if not record then return fn.fail(entry) end
 
     local vehicle = fn.createVehicle(entry.model, Config.testSpawn)
-    if not vehicle then return fn.fail('Could not spawn the test vehicle.') end
+    if not vehicle then return fn.fail(Kora.lang('s.errors.test_vehicle_spawn_failed')) end
 
     local bucket = Config.testBucketBase + src
     local data = { oldBucket = GetPlayerRoutingBucket(src), vehicle = vehicle }
@@ -46,7 +46,7 @@ local function testDrive(src, dealer, index, model)
     local netId = NetworkGetNetworkIdFromEntity(vehicle)
     if netId == 0 then
         endTestDrive(src)
-        return fn.fail('Could not network the test vehicle.')
+        return fn.fail(Kora.lang('s.errors.test_vehicle_network_failed'))
     end
 
     local plate = ('TD%06d'):format(src)
@@ -84,17 +84,17 @@ local function priceFor(src, dealer, record, entry)
 end
 
 local function confirmPurchase(src, dealer, index, model)
-    if not fn.rateLimit(src, 'purchase', Config.rateLimits.purchase) then return fn.fail('Slow down.') end
+    if not fn.rateLimit(src, 'purchase', Config.rateLimits.purchase) then return fn.fail(Kora.lang('s.errors.slow_down')) end
 
     local record, entry = checkCustomer(src, dealer, index, model)
     if not record then return fn.fail(entry) end
-    if not fn.inStock(record, entry) then return fn.fail('That vehicle is out of stock.') end
+    if not fn.inStock(record, entry) then return fn.fail(Kora.lang('s.errors.stock_empty')) end
 
     local spawn = fn.getFreeSpawn(record.spawns)
-    if not spawn then return fn.fail('There is no free spawn point right now. Try again shortly.') end
+    if not spawn then return fn.fail(Kora.lang('s.errors.spawn_unavailable')) end
 
     local price = priceFor(src, dealer, record, entry)
-    if not exports.kora_core:removeMoney(src, 'bank', price) then return fn.fail('Not enough money in your bank account.') end
+    if not exports.kora_core:removeMoney(src, 'bank', price) then return fn.fail(Kora.lang('s.errors.purchase_funds')) end
 
     local function refund(restoreStock, reverseCredit)
         if reverseCredit then fn.creditSale(dealer, -price) end
@@ -104,46 +104,46 @@ local function confirmPurchase(src, dealer, index, model)
 
     if not fn.adjustStock(dealer, entry.model, -1) then
         refund(false, false)
-        return fn.fail('That vehicle is out of stock.')
+        return fn.fail(Kora.lang('s.errors.stock_empty'))
     end
 
     if not fn.creditSale(dealer, price) then
         refund(true, false)
-        return fn.fail('Could not complete the purchase. You were refunded.')
+        return fn.fail(Kora.lang('s.errors.purchase_failed_refunded'))
     end
 
     local netId = fn.deliverVehicle(src, entry.model, spawn)
     if not netId then
         refund(true, true)
-        return fn.fail('Could not spawn your vehicle. You were refunded.')
+        return fn.fail(Kora.lang('s.errors.purchase_spawn_failed'))
     end
 
-    fn.notify(src, 'Purchase successful!', 'success')
+    fn.notify(src, Kora.lang('s.success.purchase'), 'success')
     return netId
 end
 
 local function makeOffer(src, dealer, index, model, amount, terms)
-    if not fn.rateLimit(src, 'offer', Config.rateLimits.offer) then return fn.fail('Slow down.') end
+    if not fn.rateLimit(src, 'offer', Config.rateLimits.offer) then return fn.fail(Kora.lang('s.errors.slow_down')) end
 
     local record, entry = checkCustomer(src, dealer, index, model)
     if not record then return fn.fail(entry) end
-    if record.type ~= 'owned' then return fn.fail('Offers can only be made at owned dealerships.') end
-    if not fn.inStock(record, entry) then return fn.fail('That vehicle is out of stock.') end
+    if record.type ~= 'owned' then return fn.fail(Kora.lang('s.errors.offers_owned_only')) end
+    if not fn.inStock(record, entry) then return fn.fail(Kora.lang('s.errors.stock_empty')) end
 
     amount = fn.toAmount(amount, Config.maxPrice)
-    if not amount then return fn.fail('Enter a valid offer.') end
+    if not amount then return fn.fail(Kora.lang('s.errors.offer_invalid_amount')) end
 
     terms = type(terms) == 'string' and terms:sub(1, 500) or ''
 
     local offeror = fn.citizenId(src)
-    if not offeror then return fn.fail('Could not identify you.') end
+    if not offeror then return fn.fail(Kora.lang('s.errors.offer_identity_failed')) end
 
     local open = Kora.sql.query(
         'SELECT COUNT(*) AS `total` FROM `kora_dealership_offers` WHERE `offeror` = ? AND `status` = ?',
         { offeror, 'pending' }
     )
     if open and open[1] and (tonumber(open[1].total) or 0) >= Config.maxPendingOffers then
-        return fn.fail(('You can only have %d open offers at a time.'):format(Config.maxPendingOffers))
+        return fn.fail(Kora.lang('s.errors.offer_limit', Config.maxPendingOffers))
     end
 
     local days = tonumber(Config.autoConfirmOffersDays)
@@ -155,7 +155,7 @@ local function makeOffer(src, dealer, index, model, amount, terms)
             params = { dealer, entry.model, amount, terms, seconds, 'pending', offeror },
         },
     })
-    if not ok then return fn.fail('Could not save your offer.') end
+    if not ok then return fn.fail(Kora.lang('s.errors.offer_save_failed')) end
     return true
 end
 

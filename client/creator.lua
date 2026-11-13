@@ -24,10 +24,10 @@ local function dealershipsView()
     local items = {}
     for _, entry in ipairs(list) do
         local description = entry.type == 'for_sale' and Kora.lang('c.creator.for_sale', entry.price or 0)
-            or entry.type == 'owned' and Kora.lang('c.creator.owned', entry.owner or 'unclaimed')
+            or entry.type == 'owned' and Kora.lang('c.creator.owned', entry.owner or Kora.lang('c.creator.ownerUnclaimed'))
             or Kora.lang('c.creator.public')
         if selected and selected.id == entry.id then
-            description = ('%s · %s'):format(Kora.lang('c.creator.editing'), description)
+            description = Kora.lang('c.creator.editingDescription', Kora.lang('c.creator.editing'), description)
         end
         items[#items + 1] = {
             id = entry.id,
@@ -44,7 +44,7 @@ local function dealershipsView()
             title = Kora.lang('c.creator.dealerLabel'),
             description = Kora.lang('c.creator.dealerDesc'),
             blocks = {
-                { type = 'list', id = 'dealership-list', items = items, empty = 'No dealerships yet.' },
+                { type = 'list', id = 'dealership-list', items = items, empty = Kora.lang('c.creator.noDealerships') },
                 {
                     type = 'form', id = 'create', title = Kora.lang('c.creator.createDealership'),
                     fields = { { id = 'label', label = Kora.lang('c.creator.dealerName'), type = 'text', required = true } },
@@ -105,7 +105,7 @@ local function zoneView()
                     type = 'stats',
                     items = {
                         { label = Kora.lang('c.creator.zone.stats.points'), value = zone and #zone.points or 0, icon = 'MapPin' },
-                        { label = Kora.lang('c.creator.zone.stats.thickness'), value = zone and ('%.1fm'):format(zone.thickness) or '—', icon = 'Ruler' },
+                        { label = Kora.lang('c.creator.zone.stats.thickness'), value = zone and Kora.lang('c.creator.zone.stats.thicknessValue', zone.thickness) or '—', icon = 'Ruler' },
                     },
                 },
                 {
@@ -187,7 +187,7 @@ local function saveSelected(patch)
     local result, err = Kora.callback.trigger('kora_dealership:save', selected.id, patch)
     if not result then return fail(err or Kora.lang('c.creator.failed')) end
     selected = result
-    return refresh(fn.notice('Saved.'))
+    return refresh(fn.notice(Kora.lang('c.creator.save')))
 end
 
 local function createDealership(label)

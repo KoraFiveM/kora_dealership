@@ -41,7 +41,7 @@ local function categoryOf(model)
     if categoryCache[model] then return categoryCache[model] end
 
     local hash = joaat(model)
-    local category = { order = 999, name = 'Unknown' }
+    local category = { order = 999, name = Kora.lang('c.customer.classUnknown') }
     if IsModelInCdimage(hash) and IsModelAVehicle(hash) then
         local class = GetVehicleClassFromName(hash)
         local name = Config.categories[class + 1]
@@ -75,17 +75,17 @@ local function vehicleCard(current, vehicle, categoryName, dealerType)
 
     local card = {
         id = vehicle.model,
-        label = Kora.lang('c.customer.displayLabel'):format(name, price),
+        label = Kora.lang('c.customer.displayLabel', name, price),
         description = isCurrent and Kora.lang('c.customer.currentlyDisplayed') or nil,
         tone = isCurrent and 'success' or nil,
         image = fn.getVehicleImage(vehicle.model),
         metadata = { { label = Kora.lang('c.customer.class'), value = categoryName } },
         actions = {
             { id = 'swap:' .. vehicle.model, label = Kora.lang('c.customer.buttons.swap'), icon = 'Repeat', variant = 'outline', disabled = isCurrent,
-                description = 'Display this vehicle here instead. Everyone sees it; nothing is saved.' },
+                description = Kora.lang('c.customer.swapDescription') },
             { id = 'test:' .. vehicle.model, label = Kora.lang('c.customer.buttons.test'), icon = 'Gauge', closeBeforeAction = true },
             { id = 'purchase:' .. vehicle.model, label = Kora.lang('c.customer.buttons.purchase'), icon = 'ShoppingCart', variant = 'primary',
-                closeBeforeAction = true, confirm = ('Purchase %s for $%d?'):format(name, price) },
+                closeBeforeAction = true, confirm = Kora.lang('c.customer.purchaseConfirm', name, price) },
         },
     }
     if dealerType == 'owned' then
@@ -113,7 +113,7 @@ end
 local function showroomNavigation(ctx)
     local dealerData, placement = currentPlacement(ctx)
     if not placement then
-        return { fn.emptyView(DEFAULT_VIEW, 'Showroom', 'Car', 'Showroom', 'This display vehicle is no longer available.') }
+        return { fn.emptyView(DEFAULT_VIEW, Kora.lang('c.customer.showroom'), 'Car', Kora.lang('c.customer.showroom'), Kora.lang('c.customer.displayUnavailable')) }
     end
 
     local current = modelFor(ctx.dealer, ctx.index, placement)
@@ -139,22 +139,22 @@ local function showroomNavigation(ctx)
 
         navigation[#navigation + 1] = {
             id = viewId,
-            label = ('%s (%d)'):format(group.name, #cards),
+            label = Kora.lang('c.customer.categoryLabel', group.name, #cards),
             icon = 'Car',
             content = {
                 title = group.name,
-                description = dealerData.label or 'Dealership',
+                description = dealerData.label or Kora.lang('s.title'),
                 actions = { resetAction },
                 blocks = {
                     { type = 'list', id = 'showroom-' .. group.order, layout = 'cards', cardStyle = 'media', columns = 3,
-                        searchable = #cards > 6, items = cards, empty = 'No vehicles in this category.' },
+                        searchable = #cards > 6, items = cards, empty = Kora.lang('c.customer.noCategoryVehicles') },
                 },
             },
         }
     end
 
     if #navigation == 0 then
-        navigation[1] = fn.emptyView(DEFAULT_VIEW, 'Showroom', 'Car', dealerData.label or 'Showroom', 'This dealership has no vehicles.')
+        navigation[1] = fn.emptyView(DEFAULT_VIEW, Kora.lang('c.customer.showroom'), 'Car', dealerData.label or Kora.lang('c.customer.showroom'), Kora.lang('c.customer.noVehicles'))
     end
     return navigation
 end
@@ -176,7 +176,7 @@ local function offerAmountNavigation(vehicle)
             id = 'amount', label = Kora.lang('c.customer.offer.label'), icon = 'DollarSign',
             content = {
                 title = Kora.lang('c.customer.offer.title'),
-                description = vehicle and ('%s · ' .. Kora.lang('c.customer.offer.asking')):format(vehicle.name, vehicle.price) or '',
+                description = vehicle and Kora.lang('c.customer.offer.asking', vehicle.name, vehicle.price) or '',
                 blocks = {
                     {
                         type = 'form', id = 'offer-amount', title = Kora.lang('c.customer.offer.step1'),
@@ -199,7 +199,7 @@ local function offerTermsNavigation(vehicle)
             id = 'terms', label = Kora.lang('c.customer.offer.label'), icon = 'DollarSign',
             content = {
                 title = Kora.lang('c.customer.offer.title'),
-                description = offering and ('%s · ' .. Kora.lang('c.customer.offer.asking')):format(vehicle.name, offerInput.amount) or '',
+                description = offering and Kora.lang('c.customer.offer.asking', vehicle.name, offerInput.amount) or '',
                 blocks = {
                     {
                         type = 'form', id = 'offer-terms', title = Kora.lang('c.customer.offer.step2'),
@@ -221,7 +221,7 @@ local function onOfferAmountAction(actionId, context)
     if not amount or amount < 1 or amount > Config.maxPrice then
         return {
             update = { navigation = offerAmountNavigation(offerVehicle) },
-            notice = fn.notice(('Enter an amount between 1 and %d.'):format(Config.maxPrice), 'destructive'),
+            notice = fn.notice(Kora.lang('c.customer.invalidOffer', Config.maxPrice), 'destructive'),
         }
     end
 
@@ -266,7 +266,7 @@ local function runOfferFlow(vehicle)
 
     local ok, err = Kora.callback.trigger('kora_dealership:makeOffer', vehicle.dealer, vehicle.index, vehicle.model, offerInput.amount, offerInput.terms)
     if not ok then return fn.notify(err or Kora.lang('c.customer.test.error')) end
-    fn.notify('Your offer was sent.', 'success')
+    fn.notify(Kora.lang('c.customer.offerSent'), 'success')
 end
 
 -- Active test drives waiting for the player to leave their test vehicle. Resolved
@@ -372,7 +372,7 @@ end
 
 Kora.nui.registerApp({
     id = SHOWROOM_APP_ID,
-    title = 'Dealership Showroom',
+    title = Kora.lang('c.customer.title'),
     icon = 'Car',
     layout = 'standard',
     width = 1200,

@@ -9,7 +9,7 @@ local defaultSettings = { maxPriceOverride = 10, commission = 5, employeeDiscoun
 fn.defaultSettings = defaultSettings
 
 function fn.notify(src, message, class)
-    Kora.notify.send(src, { title = 'Kora Dealerships', message = message, type = class })
+    Kora.notify.send(src, { title = Kora.lang('s.title'), message = message, type = class })
 end
 
 function fn.fail(message)
@@ -49,8 +49,8 @@ function fn.nearPoint(src, record, field, index, dist)
     local number = tonumber(index)
     index = number and math.tointeger(number)
     local point = list and index and list[index]
-    if not point then return false, 'Invalid location.' end
-    if not Kora.distance.player(src, point.coords, dist) then return false, 'You are too far away.' end
+    if not point then return false, Kora.lang('s.errors.invalid_location') end
+    if not Kora.distance.player(src, point.coords, dist) then return false, Kora.lang('s.errors.too_far') end
     return true
 end
 
@@ -83,7 +83,7 @@ function fn.playerName(who)
         local player = exports.kora_core:getPlayerData(who)
         local info = player and player.charinfo or {}
         local name = ('%s %s'):format(info.firstname or '', info.lastname or ''):match('^%s*(.-)%s*$')
-        return name ~= '' and name or ('Player %d'):format(who)
+        return name ~= '' and name or Kora.lang('s.player', who)
     end
     if type(who) == 'string' and #who == 8 then
         local rows = Kora.sql.query(
@@ -471,7 +471,7 @@ end
 
 function fn.commitDealership(record)
     local ok, err = fn.saveDealership(record)
-    if not ok then return false, err or 'Failed to save.' end
+    if not ok then return false, err or Kora.lang('s.errors.save_failed') end
 
     Dealerships[record.id] = record
     fn.publish()
@@ -614,8 +614,8 @@ end
 
 function fn.patchDealership(id, patch)
     local record = Dealerships[id]
-    if not record then return fn.fail('Unknown dealership.') end
-    if type(patch) ~= 'table' then return fn.fail('Nothing to save.') end
+    if not record then return fn.fail(Kora.lang('s.errors.unknown_dealership')) end
+    if type(patch) ~= 'table' then return fn.fail(Kora.lang('s.errors.nothing_to_save')) end
 
     local working = applyPatch(fn.copy(record), patch)
     local saved, err = fn.commitDealership(working)

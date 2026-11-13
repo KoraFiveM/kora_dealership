@@ -2,8 +2,8 @@ local busy = {}
 
 local function authorizeSale(src, dealer, index)
     local record = type(dealer) == 'string' and Dealerships[dealer]
-    if not record or record.type ~= 'owned' then return nil, 'This dealership is not owned.' end
-    if not fn.canEmployeeDo(src, dealer, 'sellVehicles') then return nil, 'You are not permitted to sell vehicles here.' end
+    if not record or record.type ~= 'owned' then return nil, Kora.lang('s.errors.not_owned') end
+    if not fn.canEmployeeDo(src, dealer, 'sellVehicles') then return nil, Kora.lang('s.errors.not_permitted') end
 
     local near, err = fn.nearPoint(src, record, 'saleZones', index, Config.saleDistance)
     if not near then return nil, err end
@@ -40,7 +40,7 @@ local function priceWithinBounds(dealer, entry, price)
     local minPrice, maxPrice = DealershipOrders.priceBounds(entry.price, fn.management(dealer).settings.maxPriceOverride)
     local finalPrice = math.floor(tonumber(price) or -1)
     if finalPrice < minPrice or finalPrice > maxPrice then
-        return nil, ('Price must be between $%d and $%d.'):format(minPrice, maxPrice)
+        return nil, Kora.lang('s.errors.sale_price_range', minPrice, maxPrice)
     end
     return finalPrice
 end
@@ -54,15 +54,15 @@ local function sell(src, request)
     local number = tonumber(request.customer)
     local customer = number and math.tointeger(number)
     if not customer or customer == src or not isNearbyCustomer(src, customer) then
-        return fn.fail('That customer is not available.')
+        return fn.fail(Kora.lang('s.errors.customer_unavailable'))
     end
 
     local entry = fn.findVehicle(record, request.model)
-    if not entry then return fn.fail('That vehicle is not sold here.') end
-    if not fn.inStock(record, entry) then return fn.fail('That vehicle is out of stock.') end
+    if not entry then return fn.fail(Kora.lang('s.errors.vehicle_not_sold')) end
+    if not fn.inStock(record, entry) then return fn.fail(Kora.lang('s.errors.stock_empty')) end
 
     local spawn = fn.getFreeSpawn(record.spawns)
-    if not spawn then return fn.fail('There is no free spawn point right now. Try again shortly.') end
+    if not spawn then return fn.fail(Kora.lang('s.errors.spawn_unavailable')) end
 
     local finalPrice, priceErr = priceWithinBounds(dealer, entry, request.price)
     if not finalPrice then return fn.fail(priceErr) end
@@ -72,35 +72,35 @@ local function sell(src, request)
         vehicle = entry.name,
         price = finalPrice,
     })
-    if type(answer) ~= 'table' or not answer.confirmed then return fn.fail('The customer declined the sale.') end
+    if type(answer) ~= 'table' or not answer.confirmed then return fn.fail(Kora.lang('s.errors.customer_declined')) end
 
     local account = answer.payment == 'cash' and 'cash' or answer.payment == 'card' and 'bank'
-    if not account then return fn.fail('The customer did not choose a payment method.') end
+    if not account then return fn.fail(Kora.lang('s.errors.payment_unselected')) end
 
     -- Everything may have changed while the customer was deciding.
     record, err = authorizeSale(src, dealer, request.index)
     if not record then return fn.fail(err) end
-    if not isNearbyCustomer(src, customer) then return fn.fail('That customer is no longer nearby.') end
+    if not isNearbyCustomer(src, customer) then return fn.fail(Kora.lang('s.errors.customer_unavailable')) end
 
     entry = fn.findVehicle(record, request.model)
-    if not entry or not fn.inStock(record, entry) then return fn.fail('That vehicle is no longer available.') end
+    if not entry or not fn.inStock(record, entry) then return fn.fail(Kora.lang('s.errors.vehicle_unavailable')) end
     finalPrice, priceErr = priceWithinBounds(dealer, entry, finalPrice)
     if not finalPrice then return fn.fail(priceErr) end
 
     if not exports.kora_core:removeMoney(customer, account, finalPrice) then
-        return fn.fail(('The customer does not have enough %s ($%d needed).'):format(account == 'cash' and 'cash' or 'money on their card', finalPrice))
+        return fn.fail(Kora.lang('s.errors.customer_funds', Kora.lang(account == 'cash' and 's.errors.customer_payment_cash' or 's.errors.customer_payment_card'), finalPrice))
     end
 
     if not fn.adjustStock(dealer, entry.model, -1) then
         exports.kora_core:addMoney(customer, account, finalPrice)
-        return fn.fail('That vehicle is no longer available.')
+        return fn.fail(Kora.lang('s.errors.vehicle_unavailable'))
     end
 
     local netId = fn.deliverVehicle(customer, entry.model, spawn)
     if not netId then
         fn.adjustStock(dealer, entry.model, 1)
         exports.kora_core:addMoney(customer, account, finalPrice)
-        return fn.fail('Could not spawn the vehicle. The customer was refunded.')
+        return fn.fail(Kora.lang('s.errors.vehicle_spawn_failed'))
     end
 
     local recorded, commission = fn.recordSale(dealer, src, {
@@ -125,7 +125,7 @@ end
 
 local function confirmSale(src, dealer, index, customer, model, price)
     local lockedAt = busy[src]
-    if lockedAt and GetGameTimer() - lockedAt < Config.saleConfirmTimeout * 1000 then return fn.fail('Please wait.') end
+    if lockedAt and GetGameTimer() - lockedAt < Config.saleConfirmTimeout * 1000 then return fn.fail(Kora.lang('s.errors.sale_wait')) end
 
     local lock = GetGameTimer()
     busy[src] = lock
@@ -134,7 +134,7 @@ local function confirmSale(src, dealer, index, customer, model, price)
 
     if not ok then
         print(('[kora_dealership] sale error for %s: %s'):format(src, tostring(result)))
-        return fn.fail('Could not complete the sale.')
+        return fn.fail(Kora.lang('s.errors.sale_failed'))
     end
     return result, message
 end

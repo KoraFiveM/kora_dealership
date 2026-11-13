@@ -62,7 +62,7 @@ local function employeesView()
     for _, employee in ipairs(employees) do
         items[#items + 1] = {
             id = employee.citizenid, label = employee.name, icon = 'User',
-            description = ('%s  |  sales: %d  |  income: $%d'):format(
+            description = Kora.lang('c.management.employees.summary', employee.citizenid, fn.toInt(employee.sales), fn.toInt(employee.income)),
                 employee.citizenid, fn.toInt(employee.sales), fn.toInt(employee.income)),
             actions = {
                 { id = 'employees:remove:' .. employee.citizenid, label = Kora.lang('c.management.employees.fire'), icon = 'UserMinus', variant = 'destructive',
@@ -78,7 +78,7 @@ local function employeesView()
             blocks = {
                 {
                     type = 'form', id = 'employee-add', title = Kora.lang('c.management.employees.add'),
-                    fields = { { id = 'serverId', label = 'Server ID', type = 'number', min = 1, required = true,
+                    fields = { { id = 'serverId', label = Kora.lang('c.management.employees.serverId'), type = 'number', min = 1, required = true,
                         description = Kora.lang('c.management.employees.addDesc') } },
                     action = { id = 'employees:add', label = Kora.lang('c.management.employees.addEmployee') },
                 },
@@ -133,9 +133,9 @@ local function fundsView()
                 {
                     type = 'stats',
                     items = {
-                        { label = Kora.lang('c.management.funds.currentBalance'), value = ('$%d'):format(funds.balance or 0), icon = 'Wallet', tone = 'success' },
-                        { label = Kora.lang('c.management.funds.totalIncome'), value = ('$%d'):format(funds.income or 0), icon = 'TrendingUp', tone = 'success' },
-                        { label = Kora.lang('c.management.funds.totalSpent'), value = ('$%d'):format(funds.spent or 0), icon = 'TrendingDown', tone = 'warning' },
+                        { label = Kora.lang('c.management.funds.currentBalance'), value = Kora.lang('s.price', funds.balance or 0), icon = 'Wallet', tone = 'success' },
+                        { label = Kora.lang('c.management.funds.totalIncome'), value = Kora.lang('s.price', funds.income or 0), icon = 'TrendingUp', tone = 'success' },
+                        { label = Kora.lang('c.management.funds.totalSpent'), value = Kora.lang('s.price', funds.spent or 0), icon = 'TrendingDown', tone = 'warning' },
                     },
                 },
                 {
@@ -197,7 +197,7 @@ end
 local function loadOffers()
     local ok, result, err = pcall(Kora.callback.trigger, 'kora_dealership:management:getOffers', dealerId, indexId)
     if not ok or not result then
-        fn.notify((ok and err) or 'Could not load offers.')
+        fn.notify((ok and err) or Kora.lang('c.management.loadOffersError'))
         return false
     end
     storeOffers(result)
@@ -206,39 +206,39 @@ end
 
 local function offerItem(offer, kind)
     local price = fn.toInt(offer.price)
-    local name = offer.name or offer.model or 'Vehicle'
-    local parts = { ('From %s'):format(offer.offeror or 'Unknown') }
+    local name = offer.name or offer.model or Kora.lang('c.management.offers.vehicle')
+    local parts = { Kora.lang('c.management.offers.from', offer.offeror or Kora.lang('c.management.offers.unknown')) }
 
     local asking = tonumber(offer.asking)
     if asking then
         local difference = price - math.floor(asking)
-        parts[#parts + 1] = ('Asking $%d (%s$%d)'):format(asking, difference < 0 and '-' or '+', math.abs(difference))
+        parts[#parts + 1] = Kora.lang('c.management.offers.asking', asking, difference < 0 and '-' or '+', math.abs(difference))
     end
     if type(offer.terms) == 'string' and offer.terms ~= '' then
-        parts[#parts + 1] = ('Terms: %s'):format(offer.terms)
+        parts[#parts + 1] = Kora.lang('c.management.offers.terms', offer.terms)
     end
 
     if kind == 'pending' then
-        if offer.expiry then parts[#parts + 1] = ('Auto-accepts %s'):format(offer.expiry) end
+        if offer.expiry then parts[#parts + 1] = Kora.lang('c.management.offers.autoAccepts', offer.expiry) end
         return {
             id = tostring(offer.id),
-            label = ('%s  ·  $%d'):format(name, price),
+            label = Kora.lang('c.management.offers.itemLabel', name, price),
             description = table.concat(parts, '  ·  '),
             icon = 'DollarSign',
             actions = {
-                { id = 'offers:accept:' .. offer.id, label = 'Accept', variant = 'primary',
+                { id = 'offers:accept:' .. offer.id, label = Kora.lang('c.management.offers.accept'), variant = 'primary',
                     confirm = Kora.lang('c.management.offers.acceptConfirm', price, name) },
-                { id = 'offers:deny:' .. offer.id, label = 'Deny', variant = 'destructive',
+                { id = 'offers:deny:' .. offer.id, label = Kora.lang('c.management.offers.deny'), variant = 'destructive',
                     confirm = Kora.lang('c.management.offers.denyConfirm', price, name),}
             },
         }
     end
 
-    local verdict = offer.status == 'accepted' and 'Accepted' or 'Denied'
-    if offer.handledBy then parts[#parts + 1] = ('%s by %s'):format(verdict, offer.handledBy) end
+    local verdict = offer.status == 'accepted' and Kora.lang('c.management.offers.acceptedStatus') or Kora.lang('c.management.offers.deniedStatus')
+    if offer.handledBy then parts[#parts + 1] = Kora.lang('c.management.offers.handledBy', verdict, offer.handledBy) end
     return {
         id = tostring(offer.id),
-        label = ('%s  ·  $%d  ·  %s'):format(name, price, verdict),
+        label = Kora.lang('c.management.offers.historyLabel', name, price, verdict),
         description = table.concat(parts, '  ·  '),
         icon = 'DollarSign',
     }
@@ -271,7 +271,7 @@ end
 
 local function buildNavigation()
     if not record then
-        return { fn.emptyView('orders', 'Management', 'Briefcase', 'Management', 'This dealership is no longer available.') }
+        return { fn.emptyView('orders', Kora.lang('c.management.title'), 'Briefcase', Kora.lang('c.management.title'), Kora.lang('c.management.unavailable')) }
     end
 
     if portalOwner then
@@ -301,7 +301,7 @@ local function buildNavigation()
     end
 
     if #navigation == 0 then
-        return { fn.emptyView('orders', 'Management', 'Briefcase', 'Management', 'You have not been given access to any management pages.') }
+        return { fn.emptyView('orders', Kora.lang('c.management.title'), 'Briefcase', Kora.lang('c.management.title'), Kora.lang('c.management.noAccess')) }
     end
     return navigation
 end
@@ -424,7 +424,7 @@ end
 
 Kora.nui.registerApp({
     id = APP_ID,
-    title = 'Dealership Management',
+    title = Kora.lang('c.management.title'),
     icon = 'Briefcase',
     layout = 'standard',
     width = 1200,
@@ -468,7 +468,7 @@ local function prepareSession(dealer)
     offers = { pending = {}, history = {} }
     grantedPermissions = {}
     if not record then
-        fn.notify('This dealership is no longer available.')
+        fn.notify(Kora.lang('c.management.unavailable'))
         return false
     end
 

@@ -22,7 +22,7 @@ local function stockedVehicleOptions()
     for _, vehicle in ipairs(stocked) do
         options[#options + 1] = {
             value = vehicle.model,
-            label = ('%s  ·  $%d  ·  %d in stock'):format(fn.vehicleName(vehicle), fn.toInt(vehicle.price), fn.toInt(vehicle.stock)),
+            label = Kora.lang('c.sales.stockItem', fn.vehicleName(vehicle), fn.toInt(vehicle.price), fn.toInt(vehicle.stock)),
         }
     end
     return options
@@ -31,7 +31,7 @@ end
 local function customerOptions()
     local options = {}
     for _, customer in ipairs(context.nearby) do
-        options[#options + 1] = { value = tostring(customer.source), label = ('%s (#%d)'):format(customer.name, customer.source) }
+        options[#options + 1] = { value = tostring(customer.source), label = Kora.lang('c.sales.customerLabel', customer.name, customer.source) }
     end
     return options
 end
@@ -46,7 +46,7 @@ local function sellForm(vehicleOptions, customers)
 
     return {
         type = 'form', id = 'sell', title = Kora.lang('c.sales.header'),
-        description = entry and Kora.lang('c.sales.allowedPriceRange'):format(minPrice, maxPrice) or nil,
+        description = entry and Kora.lang('c.sales.allowedPriceRange', minPrice, maxPrice) or nil,
         fields = {
             { id = 'customer', label = Kora.lang('c.sales.customer'), type = 'select', options = customers, required = true },
             { id = 'model', label = Kora.lang('c.sales.vehicle'), type = 'select', options = vehicleOptions, default = model, required = true,
@@ -90,7 +90,7 @@ local function onAction(actionId, actionContext)
         local sale, err = Kora.callback.trigger('kora_dealership:sales:confirm', dealerId, indexId, values.customer, values.model, values.price)
         if not sale then return fail(err or Kora.lang('c.sales.noComplete')) end
 
-        fn.notify(('Sold to %s for $%d.'):format(sale.customer, sale.amount), 'success')
+        fn.notify(Kora.lang('c.sales.sold', sale.customer, sale.amount), 'success')
         return { close = true }
     end
 
@@ -110,9 +110,9 @@ end
 Kora.callback.register('kora_dealership:sales:confirmPurchase', function(details)
     details = type(details) == 'table' and details or {}
     local answer = Kora.nui.openInputDialog({
-        { id = 'payment', label = 'Pay with', type = 'select', options = Config.paymentMethods, required = true },
-    }, Kora.lang('c.sales.buy', details.vehicle or 'vehicle', details.price),
-       Kora.lang('c.sales.isOffering', details.seller or 'The dealer'))
+        { id = 'payment', label = Kora.lang('c.sales.payWith'), type = 'select', options = Config.paymentMethods, required = true },
+    }, Kora.lang('c.sales.buy', details.vehicle or Kora.lang('c.sales.vehicleFallback'), details.price),
+       Kora.lang('c.sales.isOffering', details.seller or Kora.lang('c.sales.dealerFallback')))
 
     if not answer or answer.cancelled then return { confirmed = false } end
     return { confirmed = true, payment = answer.values.payment }

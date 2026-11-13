@@ -16,7 +16,7 @@ end
 
 local function adminOnly(src)
     if fn.isAdmin(src) then return true end
-    return fn.fail('Admin permission required.')
+    return fn.fail(Kora.lang('s.errors.admin_required'))
 end
 
 Kora.callback.register('kora_dealership:list', function(src)
@@ -36,7 +36,7 @@ Kora.callback.register('kora_dealership:get', function(src, id)
     if not allowed then return false, err end
 
     local record = type(id) == 'string' and Dealerships[id]
-    if not record then return fn.fail('Unknown dealership.') end
+    if not record then return fn.fail(Kora.lang('s.errors.unknown_dealership')) end
     return record
 end)
 
@@ -45,7 +45,7 @@ Kora.callback.register('kora_dealership:create', function(src, label)
     if not allowed then return false, err end
 
     label = fn.trim(label, 128)
-    if not label then return fn.fail('A name is required.') end
+    if not label then return fn.fail(Kora.lang('s.errors.name_required')) end
 
     local record, saveErr = fn.commitDealership({
         id = uniqueId(label),
@@ -57,17 +57,17 @@ Kora.callback.register('kora_dealership:create', function(src, label)
         managementZones = {},
         saleZones = {},
     })
-    if not record then return false, saveErr or 'Failed to create dealership.' end
+    if not record then return false, saveErr or Kora.lang('s.errors.create_failed') end
     return record
 end)
 
 Kora.callback.register('kora_dealership:delete', function(src, id)
     local allowed, err = adminOnly(src)
     if not allowed then return false, err end
-    if type(id) ~= 'string' or not Dealerships[id] then return fn.fail('Unknown dealership.') end
+    if type(id) ~= 'string' or not Dealerships[id] then return fn.fail(Kora.lang('s.errors.unknown_dealership')) end
 
     local ok, deleteErr = Kora.sql.update('DELETE FROM `kora_dealerships` WHERE `id` = ?', { id })
-    if not ok then return false, deleteErr or 'Failed to delete dealership.' end
+    if not ok then return false, deleteErr or Kora.lang('s.errors.delete_failed') end
 
     fn.forgetDealership(id)
     return true
@@ -76,26 +76,26 @@ end)
 Kora.callback.register('kora_dealership:save', function(src, id, patch)
     local allowed, err = adminOnly(src)
     if not allowed then return false, err end
-    if type(id) ~= 'string' then return fn.fail('Unknown dealership.') end
+    if type(id) ~= 'string' then return fn.fail(Kora.lang('s.errors.unknown_dealership')) end
     return fn.patchDealership(id, patch)
 end)
 
 Kora.callback.register('kora_dealership:swap', function(src, dealerId, index, model)
     local record = type(dealerId) == 'string' and Dealerships[dealerId]
-    if not record then return fn.fail('Unknown dealership.') end
+    if not record then return fn.fail(Kora.lang('s.errors.unknown_dealership')) end
 
     local number = tonumber(index)
     index = number and math.tointeger(number)
     local placement = index and record.placements[index]
-    if not placement then return fn.fail('Unknown display vehicle.') end
+    if not placement then return fn.fail(Kora.lang('s.errors.unknown_display_vehicle')) end
 
     if model ~= nil then
-        if type(model) ~= 'string' then return fn.fail('Invalid vehicle.') end
+        if type(model) ~= 'string' then return fn.fail(Kora.lang('s.errors.invalid_vehicle')) end
         model = model:lower()
-        if not fn.findVehicle(record, model) then return fn.fail('That vehicle is not sold here.') end
+        if not fn.findVehicle(record, model) then return fn.fail(Kora.lang('s.errors.vehicle_not_sold')) end
     end
 
-    if not fn.rateLimit(src, 'swap', Config.swapCooldown) then return fn.fail('Slow down.') end
+    if not fn.rateLimit(src, 'swap', Config.swapCooldown) then return fn.fail(Kora.lang('s.errors.slow_down')) end
 
     local near, err = fn.nearPoint(src, record, 'placements', index, Config.swapDistance)
     if not near then return fn.fail(err) end

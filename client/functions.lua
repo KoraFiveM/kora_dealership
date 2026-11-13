@@ -5,7 +5,7 @@ function fn.waitForDealerships()
 end
 
 function fn.notify(message, tone)
-    Kora.notify.send({ title = 'Dealership', message = message, type = tone or 'error' })
+    Kora.notify.send({ title = Kora.lang('s.title'), message = message, type = tone or 'error' })
 end
 
 function fn.notice(message, tone)
