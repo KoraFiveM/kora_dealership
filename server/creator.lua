@@ -61,7 +61,7 @@ Kora.callback.register('kora_dealership:create', function(src, label)
     return record
 end)
 
-Kora.callback.register('kora_dealership:delete', function(src, id)
+Kora.callback.register('kora_dealership:delete', fn.dealerWriter(function(src, id)
     local allowed, err = adminOnly(src)
     if not allowed then return false, err end
     if type(id) ~= 'string' or not Dealerships[id] then return fn.fail(Kora.lang('s.errors.unknown_dealership')) end
@@ -71,14 +71,14 @@ Kora.callback.register('kora_dealership:delete', function(src, id)
 
     fn.forgetDealership(id)
     return true
-end)
+end))
 
-Kora.callback.register('kora_dealership:save', function(src, id, patch)
+Kora.callback.register('kora_dealership:save', fn.dealerWriter(function(src, id, patch)
     local allowed, err = adminOnly(src)
     if not allowed then return false, err end
     if type(id) ~= 'string' then return fn.fail(Kora.lang('s.errors.unknown_dealership')) end
     return fn.patchDealership(id, patch)
-end)
+end))
 
 Kora.callback.register('kora_dealership:swap', function(src, dealerId, index, model)
     local record = type(dealerId) == 'string' and Dealerships[dealerId]

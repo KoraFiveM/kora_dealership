@@ -45,7 +45,7 @@ local function sellForm(vehicleOptions, customers)
     end
 
     return {
-        type = 'form', id = 'sell', title = Kora.lang('c.sales.header'),
+        type = 'form', id = 'sell',
         description = entry and Kora.lang('c.sales.allowedPriceRange', minPrice, maxPrice) or nil,
         fields = {
             { id = 'customer', label = Kora.lang('c.sales.customer'), type = 'select', options = customers, required = true },
@@ -54,7 +54,7 @@ local function sellForm(vehicleOptions, customers)
             { id = 'price', label = Kora.lang('c.sales.price'), type = 'range', min = minPrice, max = maxPrice, step = 1,
                 default = entry and fn.toInt(entry.price) or minPrice, required = true },
         },
-        action = { id = 'sell:confirm', label = Kora.lang('c.sales.offerToCustomer'), confirm = Kora.lang('c.sales.confirmOffer') },
+        action = { id = 'sell:confirm', label = Kora.lang('c.sales.offerToCustomer') },
     }
 end
 
@@ -87,6 +87,12 @@ local function onAction(actionId, actionContext)
     local values = actionContext and actionContext.value or {}
 
     if actionId == 'sell:confirm' then
+        local confirmation = Kora.nui.openAlert({
+            title = Kora.lang('c.sales.offerToCustomer'),
+            message = Kora.lang('c.sales.confirmOffer'),
+            confirmLabel = Kora.lang('c.sales.offerToCustomer'),
+        })
+        if not confirmation or not confirmation.confirmed then return {} end
         local sale, err = Kora.callback.trigger('kora_dealership:sales:confirm', dealerId, indexId, values.customer, values.model, values.price)
         if not sale then return fail(err or Kora.lang('c.sales.noComplete')) end
 
@@ -123,8 +129,8 @@ Kora.nui.registerApp({
     title = Kora.lang('c.sales.header'),
     icon = 'Car',
     layout = 'compact',
-    width = 900,
-    height = 600,
+    width = 740,
+    height = 540,
     defaultView = 'sell',
     navigation = buildNavigation(),
     onAction = onAction,

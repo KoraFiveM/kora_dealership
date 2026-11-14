@@ -6,7 +6,7 @@ local OFFER_TERMS_APP_ID = 'kora_dealership:offer-terms'
 local DEFAULT_VIEW = 'showroom'
 
 local zones = {}      -- dealer -> dealership zone
-local vehicles = {}   -- dealer -> { index -> display vehicle entity }
+local vehicles = {}   -- dealer -> { index -> entity and its browse target ID }
 local shown = {}      -- dealer -> { index -> model currently displayed }
 local oldGlobal = {}  -- dealer -> the dealership data the world was last synced to
 
@@ -68,24 +68,25 @@ local function vehicleDescriptor(dealerData, dealer, index, model)
     }
 end
 
-local function vehicleCard(current, vehicle, categoryName, dealerType)
+local function vehicleCard(current, vehicle, dealerType)
     local isCurrent = vehicle.model == current
     local name = fn.vehicleName(vehicle)
     local price = math.floor(tonumber(vehicle.price) or 1)
 
     local card = {
         id = vehicle.model,
-        label = Kora.lang('c.customer.displayLabel', name, price),
-        description = isCurrent and Kora.lang('c.customer.currentlyDisplayed') or nil,
+        label = name,
+        description = Kora.lang('s.price', price),
+        badge = isCurrent and Kora.lang('c.customer.currentlyDisplayed') or nil,
         tone = isCurrent and 'success' or nil,
+        icon = 'Car',
         image = fn.getVehicleImage(vehicle.model),
-        metadata = { { label = Kora.lang('c.customer.class'), value = categoryName } },
         actions = {
-            { id = 'swap:' .. vehicle.model, label = Kora.lang('c.customer.buttons.swap'), icon = 'Repeat', variant = 'outline', disabled = isCurrent,
-                description = Kora.lang('c.customer.swapDescription') },
-            { id = 'test:' .. vehicle.model, label = Kora.lang('c.customer.buttons.test'), icon = 'Gauge', closeBeforeAction = true },
             { id = 'purchase:' .. vehicle.model, label = Kora.lang('c.customer.buttons.purchase'), icon = 'ShoppingCart', variant = 'primary',
                 closeBeforeAction = true, confirm = Kora.lang('c.customer.purchaseConfirm', name, price) },
+            { id = 'test:' .. vehicle.model, label = Kora.lang('c.customer.buttons.test'), icon = 'Gauge', closeBeforeAction = true },
+            { id = 'swap:' .. vehicle.model, label = Kora.lang('c.customer.buttons.swap'), icon = 'Repeat', variant = 'outline', disabled = isCurrent,
+                description = Kora.lang('c.customer.swapDescription') },
         },
     }
     if dealerType == 'owned' then
@@ -131,7 +132,7 @@ local function showroomNavigation(ctx)
 
         local cards = {}
         for _, vehicle in ipairs(group.vehicles) do
-            cards[#cards + 1] = vehicleCard(current, vehicle, group.name, dealerData.type)
+            cards[#cards + 1] = vehicleCard(current, vehicle, dealerData.type)
         end
 
         local viewId = #navigation == 0 and DEFAULT_VIEW or ('cat-' .. group.order)
@@ -146,8 +147,11 @@ local function showroomNavigation(ctx)
                 description = dealerData.label or Kora.lang('s.title'),
                 actions = { resetAction },
                 blocks = {
-                    { type = 'list', id = 'showroom-' .. group.order, layout = 'cards', cardStyle = 'media', columns = 3,
-                        searchable = #cards > 6, items = cards, empty = Kora.lang('c.customer.noCategoryVehicles') },
+                    {
+                        type = 'list', id = 'showroom-' .. group.order, layout = 'cards', cardStyle = 'media',
+                        columns = 2, imageFit = 'contain', searchable = #cards > 6, pageSize = 12,
+                        items = cards, empty = Kora.lang('c.customer.noCategoryVehicles'),
+                    },
                 },
             },
         }
@@ -199,7 +203,7 @@ local function offerTermsNavigation(vehicle)
             id = 'terms', label = Kora.lang('c.customer.offer.label'), icon = 'DollarSign',
             content = {
                 title = Kora.lang('c.customer.offer.title'),
-                description = offering and Kora.lang('c.customer.offer.asking', vehicle.name, offerInput.amount) or '',
+                description = offering and Kora.lang('c.customer.offer.offered', vehicle.name, offerInput.amount) or '',
                 blocks = {
                     {
                         type = 'form', id = 'offer-terms', title = Kora.lang('c.customer.offer.step2'),
@@ -343,7 +347,7 @@ local vehicleActions = {
 local function swapDisplay(ctx, model, successMessage, failureMessage)
     local ok, err = Kora.callback.trigger('kora_dealership:swap', ctx.dealer, ctx.index, model)
     if not ok then return { notice = fn.notice(err or failureMessage, 'destructive') } end
-    return { update = { navigation = showroomNavigation(ctx) }, notice = fn.notice(successMessage) }
+    return { notice = fn.notice(successMessage) }
 end
 
 local function onShowroomAction(actionId, context)
@@ -416,16 +420,19 @@ local function addZone(dealer, zone)
 end
 
 local function removeVehicle(dealer, index)
-    local entity = vehicles[dealer] and vehicles[dealer][index]
-    if entity then
-        Kora.entities.remove(entity)
+    local vehicle = vehicles[dealer] and vehicles[dealer][index]
+    if vehicle then
+        if vehicle.targetId then
+            pcall(function() exports.kora_target:removeEntity(vehicle.entity, vehicle.targetId) end)
+        end
+        Kora.entities.remove(vehicle.entity)
         vehicles[dealer][index] = nil
     end
     if shown[dealer] then shown[dealer][index] = nil end
 end
 
 local function attachBrowseTarget(entity, dealer, index)
-    exports.kora_target:addEntity(entity, {
+    return exports.kora_target:addEntity(entity, {
         {
             icon = 'fas fa-car',
             label = Kora.lang('c.customer.target'),
@@ -442,11 +449,11 @@ local function spawnVehicle(dealer, index, placement)
     if not entity or entity == 0 then return end
 
     SetEntityHeading(entity, coords.w or 0.0)
-    attachBrowseTarget(entity, dealer, index)
+    local targetId = attachBrowseTarget(entity, dealer, index)
 
     vehicles[dealer] = vehicles[dealer] or {}
     shown[dealer] = shown[dealer] or {}
-    vehicles[dealer][index] = entity
+    vehicles[dealer][index] = { entity = entity, targetId = targetId }
     shown[dealer][index] = model
 end
 
@@ -523,11 +530,17 @@ AddStateBagChangeHandler('Dealerships', 'global', function(_, _, value)
 end)
 
 AddStateBagChangeHandler('DealershipSwaps', 'global', function(_, _, value)
+    local ctx = showroomCtx
+    local _, placement = currentPlacement(ctx)
+    local previous = placement and modelFor(ctx.dealer, ctx.index, placement)
     latest.swaps = value or {}
     queueSync()
+    if placement and previous ~= modelFor(ctx.dealer, ctx.index, placement) and Kora.nui.isAppOpen(SHOWROOM_APP_ID) then
+        Kora.nui.updateApp(SHOWROOM_APP_ID, { navigation = showroomNavigation(ctx) })
+    end
 end)
 
-AddEventHandler('onResourceStop', function(resource)
+AddEventHandler('onClientResourceStop', function(resource)
     if resource ~= GetCurrentResourceName() then return end
     for dealer in pairs(zones) do removeZone(dealer) end
     for dealer in pairs(vehicles) do removePlacements(dealer) end

@@ -11,6 +11,8 @@ description 'Dealership creator: build dealership zones, vehicle lists, placemen
 dependency 'kora_lib'
 dependency 'kora_sql'
 dependency 'kora_core'
+dependency 'kora_target'
+dependency 'kora_vehiclekeys'
 
 shared_scripts {
     '@kora_lib/init.lua',
@@ -38,7 +40,10 @@ client_scripts {
     'client/Management.lua',
 }
 
-files { 'locales/en.lua' }
+files {
+    'locales/en.lua',
+    'locales/pt.lua',
+}
 
 -- kora_qa: Gherkin test scenarios (converted legacy tests), see [kora]/kora_qa/README.md
 qa_feature 'tests/*.feature'

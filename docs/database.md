@@ -30,6 +30,8 @@ With `Config.UsePDM` the table is seeded with a `pdm` row.
 
 One row per owned dealership, created lazily on first access. Foreign key to `kora_dealerships.id` with cascade.
 
+Stock orders commit the stock list and dealership debit in one checked transaction. Purchases commit the ownership row with any stock and dealership accounting changes. Accepted offers also update the offer status in that transaction. Player payments and credits use the cash or bank APIs separately. See [Troubleshooting](./troubleshooting.md) for recovery when settlement cannot be confirmed.
+
 | Column | Type | Notes |
 | --- | --- | --- |
 | `dealership_id` | varchar(64) | Primary key. |

@@ -1,6 +1,6 @@
 # kora_dealership agent guide
 
-`kora_dealership` is a Kora dealership resource: an admin creator (`/dealershipcreator`), a customer showroom (swap, test drive, purchase, offers), a staff sales target and an owner management portal, all as `kora_lib` NUI apps. Layout: `fxmanifest.lua`, `config.lua`, `shared/functions.lua` (price helpers), `server/` (`schema.lua`, `functions.lua` shared server helpers, `creator.lua`, `customer.lua`, `sales.lua`, `Management.lua`), `client/` (matching apps, `views.lua`, target zones), `locales/en.lua`, `test/` (offline Lua checks) and `tests/` (kora_qa feature files).
+`kora_dealership` is a Kora dealership resource: an admin creator (`/dealershipcreator`), a customer showroom (swap, test drive, purchase, offers), a staff sales target and an owner management portal, all as `kora_lib` NUI apps. Layout: `fxmanifest.lua`, `shared/config.lua`, `shared/functions.lua` (price helpers), `server/` (`schema.lua`, `functions.lua` shared server helpers, `creator.lua`, `customer.lua`, `sales.lua`, `Management.lua`), `client/` (matching apps, `views.lua`, target zones), `locales/en.lua`, `test/` (offline Lua checks) and `tests/` (kora_qa feature files).
 
 ## Documentation
 

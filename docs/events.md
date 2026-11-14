@@ -44,7 +44,7 @@ Client to server communication uses `Kora.callback` (kora_lib). Callbacks return
 
 | Event | Direction | Description |
 | --- | --- | --- |
-| `kora_dealership:server:testDriveEnded` | client to server | Ends the sender's test drive and deletes the vehicle. Ignored when triggered by another resource. |
+| `kora_dealership:server:testDriveEnded` | client to server | Ends the sender's test drive, deletes the vehicle and revokes its temporary keys. Ignored when triggered by another resource. |
 
 ## Local events
 
@@ -54,4 +54,4 @@ Client to server communication uses `Kora.callback` (kora_lib). Callbacks return
 
 ## State bags
 
-Global state published by the server and read by clients: `Dealerships` (all records), `DealershipSwaps` (display swaps), `DealershipStaff` and `DealershipOfferStaff` (citizenids per dealership). `Dealerships` is visible to every client and includes owner citizenids and stock.
+Global state published by the server and read by clients: `Dealerships` (all records), `DealershipSwaps` (display swaps), and `DealershipStaff` (citizenids per dealership who can use staff sale targets). `Dealerships` is visible to every client and includes owner citizenids and stock.

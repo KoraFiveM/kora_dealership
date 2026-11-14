@@ -34,4 +34,4 @@ Granted by the owner per employee. Values come from `Config.employeePermissions`
 
 Only the owner can add or remove employees, set permissions, change settings, move funds, and edit spawn points, management points and sale points. A new employee starts with no permissions. Added employees must be within `Config.nearbyCustomerDistance` of the owner.
 
-The client mirrors staff lists from the `DealershipStaff` and `DealershipOfferStaff` state bags only to decide whether to show target options; the server re-checks every action.
+The client mirrors the `DealershipStaff` state bag to decide whether to show sale target options; the server re-checks every action. Offer permissions are checked by the server when opening the Offers page and resolving an offer.

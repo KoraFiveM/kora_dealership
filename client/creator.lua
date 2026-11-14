@@ -128,7 +128,29 @@ local function vehiclesView()
             label = fn.vehicleName(vehicle),
             description = Kora.lang('s.price', tonumber(vehicle.price) or 1),
             icon = 'Car',
-            action = 'vehicles:edit:' .. vehicle.model,
+            actions = {
+                {
+                    id = 'vehicles:price:' .. vehicle.model,
+                    label = Kora.lang('c.creator.vehicles.form.sale'),
+                    submitLabel = Kora.lang('c.creator.vehicles.form.save'),
+                    fields = {
+                        {
+                            id = 'price',
+                            type = 'number',
+                            label = Kora.lang('c.creator.vehicles.form.sale'),
+                            default = tonumber(vehicle.price) or 1,
+                            min = 1,
+                            max = Config.maxPrice,
+                            required = true,
+                        },
+                    },
+                },
+                {
+                    id = 'vehicles:remove:' .. vehicle.model,
+                    label = Kora.lang('c.creator.vehicles.remove.confirm'),
+                    variant = 'destructive',
+                },
+            },
             image = fn.getVehicleImage(vehicle.model),
         }
     end
@@ -141,10 +163,19 @@ local function vehiclesView()
             blocks = {
                 {
                     type = 'form', id = 'vehicle-add', title = Kora.lang('c.creator.vehicles.form.add'),
-                    fields = { { id = 'model', label = Kora.lang('c.creator.vehicles.form.veh'), type = 'select', options = loadCatalog(), required = true } },
+                    fields = {
+                        {
+                            id = 'model', label = Kora.lang('c.creator.vehicles.form.veh'), type = 'select',
+                            options = loadCatalog(), searchable = true, required = true,
+                        },
+                    },
                     action = { id = 'vehicles:add', label = Kora.lang('c.creator.vehicles.form.add') },
                 },
-                { type = 'list', id = 'vehicle-list', title = Kora.lang('c.creator.vehicles.form.current', #items), layout = 'cards', imageFit = 'contain', imageAspect = 'wide', items = items, empty = Kora.lang('c.creator.vehicles.form.empty') },
+                {
+                    type = 'list', id = 'vehicle-list', title = Kora.lang('c.creator.vehicles.form.current', #items),
+                    layout = 'list', imageFit = 'contain', imageAspect = 'wide', searchable = #items > 6, pageSize = 12,
+                    items = items, empty = Kora.lang('c.creator.vehicles.form.empty'),
+                },
             },
         },
     }
@@ -236,6 +267,15 @@ local function setVehiclePrice(model, price)
 end
 
 local function removeVehicle(model)
+    local vehicle = fn.findVehicle(selected.vehicles, model)
+    if not vehicle then return refresh() end
+    local confirmation = Kora.nui.openAlert({
+        title = Kora.lang('c.creator.vehicles.remove.title'),
+        message = Kora.lang('c.creator.vehicles.remove.message', fn.vehicleName(vehicle)),
+        confirmLabel = Kora.lang('c.creator.vehicles.remove.confirm'),
+    })
+    if not confirmation or not confirmation.confirmed then return refresh() end
+
     local vehicles = {}
     for _, vehicle in ipairs(selected.vehicles) do
         if vehicle.model ~= model then vehicles[#vehicles + 1] = vehicle end
@@ -266,7 +306,8 @@ local function onAction(actionId, context)
     if actionId == 'zone:clear' then return saveSelected({ clearZone = true, zone = nil }) end
 
     if actionId == 'vehicles:add' then return addVehicle(values.model) end
-    if actionId == 'vehicles:price' then return setVehiclePrice(values.model, tonumber(values.price)) end
+    local priceModel = actionId:match('^vehicles:price:(.+)$')
+    if priceModel then return setVehiclePrice(priceModel, tonumber(values.price)) end
     local removeModel = actionId:match('^vehicles:remove:(.+)$')
     if removeModel then return removeVehicle(removeModel) end
 

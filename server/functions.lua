@@ -8,6 +8,51 @@ local defaultSettings = { maxPriceOverride = 10, commission = 5, employeeDiscoun
 
 fn.defaultSettings = defaultSettings
 
+local writing, uncertain = {}, {}
+local operationSession = ('kora_dealership:%d:%08x'):format(os.time(), math.random(0, 0x7fffffff))
+local operationSequence = 0
+
+-- Keep cached dealer snapshots stable across awaited writes.
+function fn.withDealerWrite(dealer, action, ...)
+    if type(dealer) ~= 'string' then return fn.fail(Kora.lang('s.errors.unknown_dealership')) end
+    if writing[dealer] or uncertain[dealer] then return fn.fail(Kora.lang('s.errors.sale_wait')) end
+    writing[dealer] = true
+    local ok, result, message = pcall(action, ...)
+    writing[dealer] = nil
+    if not ok then
+        print(('[kora_dealership] write failed for %s: %s'):format(dealer, tostring(result)))
+        return fn.fail(Kora.lang('s.errors.save_failed'))
+    end
+    return result, message
+end
+
+function fn.dealerWriter(action)
+    return function(src, dealer, ...)
+        return fn.withDealerWrite(dealer, action, src, dealer, ...)
+    end
+end
+
+function fn.flagSettlement(dealer, detail)
+    uncertain[dealer] = true
+    print(('[kora_dealership] settlement needs review for %s; writes paused until restart: %s'):format(dealer, detail))
+end
+
+function fn.commitSaleWrites(dealer, statements)
+    -- The SQL export appends the caller name, so pass operation metadata explicitly.
+    operationSequence = operationSequence + 1
+    local operation = {
+        key = ('%s:%d'):format(operationSession, operationSequence),
+        fingerprint = json.encode(statements),
+    }
+    local called, outcome, err = pcall(Kora.sql.transactionChecked, statements, operation)
+    if called and outcome and outcome.success then return true end
+    if not called or not outcome or outcome.code == 'indeterminate' then
+        fn.flagSettlement(dealer, tostring(err or (type(outcome) == 'table' and outcome.message) or outcome))
+        return false, 'indeterminate'
+    end
+    return false, outcome.code
+end
+
 function fn.notify(src, message, class)
     Kora.notify.send(src, { title = Kora.lang('s.title'), message = message, type = class })
 end
@@ -40,6 +85,7 @@ end
 
 function fn.isAdmin(src)
     return IsPlayerAceAllowed(src, Config.adminPermission or 'admin')
+        or IsPlayerAceAllowed(src, 'kora_core.admin')   
 end
 
 -- Validates a client-supplied list index and the player's distance to that point.
@@ -108,13 +154,17 @@ function fn.takeCash(cid, amount)
     if amount <= 0 then return false end
 
     local player = exports.kora_core:getPlayerByCitizenId(cid)
-    if player then return player.removeMoney(amount) end
+    if player then
+        local balance = exports.kora_core:getMoney(player.source, 'cash')
+        if type(balance) == 'number' and balance < amount then return false, true end
+        return exports.kora_core:removeMoney(player.source, 'cash', amount, 'Dealership offer', true) == true
+    end
 
     local result = Kora.sql.query(
         'UPDATE `players` SET `money` = JSON_SET(`money`, "$.cash", JSON_EXTRACT(`money`, "$.cash") - ?) WHERE `citizenid` = ? AND JSON_EXTRACT(`money`, "$.cash") >= ?',
         { amount, cid, amount }
     )
-    return result and result.affectedRows == 1
+    return result and result.affectedRows == 1, result ~= nil and result.affectedRows == 0
 end
 
 function fn.giveCash(cid, amount)
@@ -122,7 +172,7 @@ function fn.giveCash(cid, amount)
     if amount <= 0 then return false end
 
     local player = exports.kora_core:getPlayerByCitizenId(cid)
-    if player then return player.addMoney(amount) end
+    if player then return exports.kora_core:addMoney(player.source, 'cash', amount, 'Dealership refund', true) end
 
     local result = Kora.sql.query(
         'UPDATE `players` SET `money` = JSON_SET(`money`, "$.cash", JSON_EXTRACT(`money`, "$.cash") + ?) WHERE `citizenid` = ?',
@@ -180,25 +230,36 @@ function fn.inStock(record, entry)
     return record.type == 'public' or (tonumber(entry.stock) or 0) > 0
 end
 
--- Returns false when the vehicle is unknown, there is not enough stock for a decrement,
--- or the save failed (the in-memory stock is restored in both failure cases).
-function fn.adjustStock(dealer, model, delta)
+-- Stage only the vehicle list. Publish the new count after the transaction commits.
+function fn.stageStock(dealer, model, delta, statements)
     local record = Dealerships[dealer]
     local entry = record and fn.findVehicle(record, model)
     if not entry then return false end
-    if record.type == 'public' then return true end
+    if record.type == 'public' then return function() end end
 
     local previous = math.floor(tonumber(entry.stock) or 0)
     local updated = previous + delta
     if updated < 0 or updated > Config.maxStock then return false end
 
-    entry.stock = updated
-    if not fn.saveDealership(record) then
-        entry.stock = previous
-        return false
+    local vehicles = {}
+    for i, vehicle in ipairs(record.vehicles) do
+        vehicles[i] = vehicle
+        if vehicle == entry then
+            local replacement = {}
+            for key, value in pairs(entry) do replacement[key] = value end
+            replacement.stock = updated
+            vehicles[i] = replacement
+        end
     end
-    fn.publish()
-    return true
+    statements[#statements + 1] = {
+        sql = 'UPDATE `kora_dealerships` SET `vehicles` = ? WHERE `id` = ?',
+        params = { json.encode(vehicles), dealer },
+        expectedRows = 1,
+    }
+    return function()
+        record.vehicles = vehicles
+        fn.publish()
+    end
 end
 
 function fn.createVehicle(model, coords)
@@ -226,44 +287,106 @@ local function newPlate()
     end
 end
 
-local function insertOwnedVehicle(cid, model, plate, state)
-    return Kora.sql.transaction({
-        {
-            sql = 'INSERT INTO player_vehicles (plate, vehicle, citizenid, state, fuel, engine_health, body_health, balance, paymentamount, paymentsleft, financetime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            params = { plate, model, cid, state, 100.0, 1000.0, 1000.0, 0, 0, 0, 0 },
-        },
-    })
+local function ownershipWrite(cid, model, plate, state)
+    return {
+        sql = 'INSERT INTO player_vehicles (plate, vehicle, citizenid, state, fuel, engine_health, body_health, balance, paymentamount, paymentsleft, financetime) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        params = { plate, model, cid, state, 100.0, 1000.0, 1000.0, 0, 0, 0, 0 },
+        expectedRows = 1,
+    }
 end
 
 -- `target` is a server id (the car is spawned at `spawn`, keyed and the player warped in; returns the
 -- network id) or a citizenid (a garaged row is written, nothing spawns; returns true). nil on failure.
-function fn.deliverVehicle(target, model, spawn)
+function fn.deliverVehicle(target, model, spawn, commit, expectedCid)
     local plate = newPlate()
     if not plate then return nil end
+    commit = commit or Kora.sql.transaction
 
     if type(target) ~= 'number' then
-        if not insertOwnedVehicle(target, model, plate, Config.offerVehicleState) then return nil end
-        TriggerEvent('qb-vehicleshop:server:onVehiclePurchased', target, model, plate)
+        local saved, reason = commit({ ownershipWrite(target, model, plate, Config.offerVehicleState) })
+        if not saved then return nil, reason end
+        local emitted, err = pcall(TriggerEvent, 'qb-vehicleshop:server:onVehiclePurchased', target, model, plate)
+        if not emitted then print(('[kora_dealership] purchase event failed for %s: %s'):format(plate, tostring(err))) end
         return true
     end
 
     local cid = fn.citizenId(target)
-    if not cid or not spawn then return nil end
+    if not cid or (expectedCid and cid ~= expectedCid) or not spawn then return nil end
 
     local vehicle = fn.createVehicle(model, spawn.coords)
     if not vehicle then return nil end
 
     SetVehicleNumberPlateText(vehicle, plate)
     local netId = NetworkGetNetworkIdFromEntity(vehicle)
-    if netId == 0 or not insertOwnedVehicle(cid, model, plate, 'out') then
+    if netId == 0 then
         DeleteEntity(vehicle)
         return nil
     end
+    local saved, reason = commit({ ownershipWrite(cid, model, plate, 'out') })
+    if not saved then
+        DeleteEntity(vehicle)
+        return nil, reason
+    end
 
-    exports.kora_vehiclekeys:giveKeys(target, plate)
-    TriggerEvent('qb-vehicleshop:server:onVehiclePurchased', cid, model, plate)
-    TaskWarpPedIntoVehicle(GetPlayerPed(target), vehicle, -1)
+    local keyed, granted = pcall(function()
+        if fn.citizenId(target) ~= cid then return false end
+        return exports.kora_vehiclekeys:giveKeys(target, plate)
+    end)
+    if not keyed or granted == false then
+        print(('[kora_dealership] could not grant keys for purchased vehicle %s'):format(plate))
+    end
+    local emitted, err = pcall(TriggerEvent, 'qb-vehicleshop:server:onVehiclePurchased', cid, model, plate)
+    if not emitted then print(('[kora_dealership] purchase event failed for %s: %s'):format(plate, tostring(err))) end
+    pcall(function()
+        if fn.citizenId(target) == cid then TaskWarpPedIntoVehicle(GetPlayerPed(target), vehicle, -1) end
+    end)
     return netId
+end
+
+function fn.deliverSale(dealer, target, model, spawn, statements, stock, management, expectedCid)
+    local committed = false
+    local function commit(writes)
+        for _, write in ipairs(statements) do writes[#writes + 1] = write end
+        local saved, reason = fn.commitSaleWrites(dealer, writes)
+        if saved then
+            committed = true
+            if management then management() end
+            stock()
+        elseif reason == 'indeterminate' then
+            fn.flagSettlement(dealer, ('check ownership for plate %s'):format(writes[1].params[1]))
+        end
+        return saved, reason
+    end
+    local called, result, reason = pcall(fn.deliverVehicle, target, model, spawn, commit, expectedCid)
+    if called then return result, reason end
+    if committed or uncertain[dealer] then
+        fn.flagSettlement(dealer, tostring(result))
+        return nil, 'indeterminate'
+    end
+    print(('[kora_dealership] delivery failed for %s: %s'):format(dealer, tostring(result)))
+    return nil
+end
+
+function fn.creditPlayer(dealer, src, cid, account, amount, reason)
+    local called, credited = pcall(function()
+        if not cid then return false end
+        if fn.citizenId(src) ~= cid then
+            local player = exports.kora_core:getPlayerByCitizenId(cid)
+            src = player and player.source
+        end
+
+        if src and fn.citizenId(src) == cid then
+            local paid = exports.kora_core:addMoney(src, account, amount, reason, true)
+            if paid or fn.citizenId(src) == cid then return paid end
+        end
+        -- Offline cash may be inventory-backed. Only recover stored bank credits here.
+        if account == 'bank' then
+            return exports.kora_core:addOfflineMoney(cid, account, amount)
+        end
+    end)
+    if called and credited then return true end
+    fn.flagSettlement(dealer, ('%s due to %s, %s %d'):format(reason, tostring(cid), account, amount))
+    return false
 end
 
 -- Returns the first spawn with no vehicle within the clearance radius, or nil.
@@ -302,62 +425,51 @@ local function newManagement(row)
     }
 end
 
-local function writeManagement(dealer, data)
-    return Kora.sql.transaction({
-        {
-            sql = 'UPDATE `kora_dealership_management` SET `current_balance` = ?, `income` = ?, `spent` = ?, `sales` = ?, `employees` = ?, `employee_permissions` = ?, `settings` = ? WHERE `dealership_id` = ?',
-            params = {
-                data.balance, data.income, data.spent, json.encode(data.sales),
-                json.encode(data.employees), json.encode(data.permissions), json.encode(data.settings), dealer,
-            },
+local function managementWrite(dealer, data)
+    return {
+        sql = 'UPDATE `kora_dealership_management` SET `current_balance` = ?, `income` = ?, `spent` = ?, `sales` = ?, `employees` = ?, `employee_permissions` = ?, `settings` = ? WHERE `dealership_id` = ?',
+        params = {
+            data.balance, data.income, data.spent, json.encode(data.sales),
+            json.encode(data.employees), json.encode(data.permissions), json.encode(data.settings), dealer,
         },
-    })
+        expectedRows = 1,
+    }
 end
 
 function fn.management(dealer)
     if not DealerData[dealer] then
-        DealerData[dealer] = newManagement()
-        Kora.sql.query(
+        local created = Kora.sql.update(
             'INSERT IGNORE INTO `kora_dealership_management` (`dealership_id`, `sales`, `employees`, `employee_permissions`, `settings`) VALUES (?, ?, ?, ?, ?)',
             { dealer, '[]', '[]', '{}', json.encode(defaultSettings) }
         )
+        if not created then return newManagement() end
+        DealerData[dealer] = DealerData[dealer] or newManagement()
     end
     return DealerData[dealer]
 end
 
--- Callers must pass new tables for any field they change (never mutate the cached ones), so a
--- failed write can restore the previous state. Returns the new data or false.
-function fn.updateManagement(dealer, changes)
+function fn.stageManagement(dealer, changes, statements)
     local previous = fn.management(dealer)
     local updated = {}
     for key, value in pairs(previous) do updated[key] = value end
     for key, value in pairs(changes) do updated[key] = value end
 
-    DealerData[dealer] = updated
-    local ok, err = writeManagement(dealer, updated)
-    if not ok then
-        print(('[kora_dealership] management save FAILED for %s: %s'):format(dealer, tostring(err)))
-        DealerData[dealer] = previous
-        return false
+    statements[#statements + 1] = managementWrite(dealer, updated)
+    return function()
+        DealerData[dealer] = updated
+        return updated
     end
-    return updated
 end
 
--- Credits (or, with a negative amount, reverses) a sale for the dealership. true or false.
-function fn.creditSale(dealer, amount)
-    local record = Dealerships[dealer]
-    if not record then return false end
-    if record.type ~= 'owned' then return true end
-
-    local data = fn.management(dealer)
-    return fn.updateManagement(dealer, { balance = data.balance + amount, income = data.income + amount }) ~= false
+function fn.updateManagement(dealer, changes)
+    local statements = {}
+    local publish = fn.stageManagement(dealer, changes, statements)
+    local saved, reason = fn.commitSaleWrites(dealer, statements)
+    if not saved then return false, reason end
+    return publish()
 end
 
-function fn.recordSale(dealer, seller, sale)
-    local record = Dealerships[dealer]
-    if not record or record.type ~= 'owned' then return true, 0 end
-    if not fn.isEmployee(seller, dealer) then return false end
-
+function fn.stageStaffSale(dealer, seller, sale, statements)
     local data = fn.management(dealer)
     local sellerCid = fn.citizenId(seller)
     local price = math.floor(tonumber(sale.price) or 0)
@@ -386,16 +498,13 @@ function fn.recordSale(dealer, seller, sale)
     end
 
     local dealerShare = price - commission
-    local updated = fn.updateManagement(dealer, {
+    local publish = fn.stageManagement(dealer, {
         balance = data.balance + dealerShare,
         income = data.income + dealerShare,
         sales = log,
         employees = employees,
-    })
-    if not updated then return false end
-
-    if commission > 0 then exports.kora_core:addMoney(seller, 'bank', commission) end
-    return true, commission
+    }, statements)
+    return publish, commission
 end
 
 local function hasPermission(dealer, cid, action)
@@ -431,23 +540,18 @@ function fn.canEmployeeDo(src, dealer, action)
 end
 
 function fn.publishStaff()
-    local staff, offerStaff = {}, {}
+    local staff = {}
     for dealer, record in pairs(Dealerships) do
         if record.type == 'owned' and record.owner then
             staff[dealer] = { [record.owner] = true }
-            offerStaff[dealer] = { [record.owner] = true }
             for _, employee in ipairs(fn.management(dealer).employees) do
                 if hasPermission(dealer, employee.citizenid, 'sellVehicles') then
                     staff[dealer][employee.citizenid] = true
-                end
-                if hasPermission(dealer, employee.citizenid, 'handleOffers') then
-                    offerStaff[dealer][employee.citizenid] = true
                 end
             end
         end
     end
     GlobalState.DealershipStaff = staff
-    GlobalState.DealershipOfferStaff = offerStaff -- who may open the management Offers page
 end
 
 function fn.saveDealership(record)
@@ -671,6 +775,12 @@ CreateThread(function()
         for _, warning in ipairs(report.warnings or {}) do
             print(('^3[kora_dealership]^7 %s: %s'):format(tostring(report.table), tostring(warning)))
         end
+    end
+    local tablesReady, tablesErr = Kora.sql.awaitTables({ 'players', 'player_vehicles' }, 60000)
+    if not tablesReady then
+        print(('^1[kora_dealership]^7 player tables unavailable; dealerships are not loaded until restart: %s')
+            :format(tostring(tablesErr)))
+        return
     end
     load()
 end)

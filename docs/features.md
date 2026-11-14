@@ -19,7 +19,7 @@ sidebar_position: 6
 - Display vehicles are spawned locally (frozen, invincible) at each placement. Using the target option opens the showroom for that display.
 - **Swap**: change which vehicle a display shows, for everyone. Limited by `Config.swapDistance` and `Config.swapCooldown`. A "reset" restores the placement's original model. Swaps are in-memory and are cleared when the placements change or the model is no longer sold.
 - **Test drive**: spawns the vehicle at `Config.testSpawn` in a private routing bucket (`Config.testBucketBase` plus the server id), with keys and plate `TD` plus the server id. It ends when the player leaves the vehicle, disconnects, or after `Config.testDriveSeconds`. The player is faded back to where they started.
-- **Purchase**: charges the player's bank account, takes one stock (owned dealerships), delivers the vehicle at the first free spawn point (no vehicle within `Config.spawnClearance`), gives keys and warps the player in. Any failure refunds. Employees of an owned dealership pay the dealership's `employeeDiscount` percent less.
+- **Purchase**: charges the player's bank account and commits vehicle ownership with any stock and dealership credit changes. The player receives keys and is warped into the delivered vehicle. After a confirmed rollback the resource attempts a refund. Employees of an owned dealership pay the dealership's `employeeDiscount` percent less.
 - **Offer** (owned dealerships only): a two-step form (amount, optional terms up to 500 characters). Limited to `Config.maxPendingOffers` open offers per player. Offers are accepted or denied by staff, or auto-accepted after `Config.autoConfirmOffersDays` days.
 
 ## Staff sales
@@ -41,4 +41,4 @@ Employees only see the pages their permissions allow. See [Permissions](./permis
 
 ## Offer settlement
 
-Accepting an offer takes cash from the offeror (online or offline, cash only), removes one stock, credits the dealership, and writes a garaged `player_vehicles` row (state `Config.offerVehicleState`). Nothing is spawned. If any step fails, earlier steps are reversed and the offer returns to pending (on manual accept) or is denied (on auto-accept). A background loop checks due offers every `Config.autoConfirmCheckSeconds` seconds, 20 at a time.
+Accepting an offer charges cash and commits the offer status, stock, dealership credit, and garaged vehicle together. After a confirmed rollback, the resource attempts to refund the charge and the offer stays pending. Automatic processing checks up to 20 due offers per interval and retries temporarily blocked offers on a later pass. See [Troubleshooting](./troubleshooting.md) for settlements that need review.

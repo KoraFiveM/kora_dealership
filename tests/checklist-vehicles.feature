@@ -47,14 +47,14 @@ Feature: kora_dealership — Vehicles
   @kora_dealership @checklist @checklist:kora_dealership:creator-vehicles @cat:vehicles @needs:admin
   Scenario: Add vehicles and set prices
     """
-    Checklist test: Vehicle Management: Add Vehicles with price, edit sale price (Save Price), duplicate vehicle rejected.
+    Checklist test: Vehicle Management: Add Vehicles at the catalog price, edit a vehicle card's sale price with Save Price, and reject duplicate vehicles.
     """
     When I manually: run /dealershipcreator
     Then the "kora_dealership:creator" app should be open
     When I manually: open a dealership and go to Vehicle Management
-    And I manually: click Add Vehicles and add a vehicle with a price
+    And I manually: click Add Vehicles and add a vehicle
     Then I confirm: the vehicle appears in the list with its price
-    When I manually: edit the sale price and click Save Price
+    When I manually: open Sale Price on the vehicle card, edit the price and click Save Price
     Then I confirm: the new price is saved
     When I manually: try to add the same vehicle again
     Then I confirm: the duplicate vehicle is rejected

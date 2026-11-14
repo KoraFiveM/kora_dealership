@@ -5,7 +5,13 @@ sidebar_position: 7
 
 # Configuration
 
-All options are in `config.lua` (the `Config` table, shared between client and server). The file ends by passing `Config` through `Kora.config.adopt` when available, so values may also be overridden by `kora_lib` config. Locale strings are in `locales/en.lua`.
+All options are in `shared/config.lua` (the `Config` table, shared between client and server). The file ends by passing `Config` through `Kora.config.adopt` when available, so values may also be overridden by `kora_lib` config.
+
+## Locales
+
+The resource ships English (`locales/en.lua`) and Portuguese (`locales/pt.lua`). Set the server default with `setr qb_locale "en"` and make both languages available with `setr qb_locales "en,pt"`. Players can select Portuguese with `/language`. Reconnect after changing languages to refresh labels the resource sets at startup. Server-generated dealership messages use the server default, and missing translations fall back to English.
+
+Vehicle class, employee permission, and payment method labels are configured in the corresponding `Config` tables.
 
 ## General
 

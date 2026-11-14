@@ -17,4 +17,29 @@ assert(pdm.vehicles:find('"model":"asbo"', 1, true) and pdm.zone:find('"thicknes
 
 local manifest = assert(io.open('fxmanifest.lua')):read('a')
 assert(manifest:find("'server/schema.lua'", 1, true) and not manifest:find('dealers.sql', 1, true), 'manifest loads the schema, not the sql file')
+
+local boot
+function CreateThread(action) boot = action end
+function AddEventHandler() end
+Config = { UsePDM = true }
+GlobalState = {}
+Kora.print = { debug = function() end }
+Kora.sql.ready = function() return true end
+Kora.sql.ensureTables = function() return {} end
+local tablesReady = false
+Kora.sql.awaitTables = function(names)
+    assert(#names == 2 and names[1] == 'players' and names[2] == 'player_vehicles')
+    assert(GlobalState.Dealerships == nil, 'dealerships must not be published while Core tables are unavailable')
+    return tablesReady, 'tables unavailable'
+end
+Kora.sql.query = function()
+    assert(tablesReady, 'startup must wait before loading dealerships')
+    return {}
+end
+dofile('server/functions.lua')
+boot()
+assert(GlobalState.Dealerships == nil)
+tablesReady = true
+boot()
+assert(type(GlobalState.Dealerships) == 'table', 'startup publishes once Core tables are ready')
 print('kora_dealership: schema declares its tables and the pdm seed')

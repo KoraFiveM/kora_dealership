@@ -37,10 +37,6 @@ function fn.isStaff(dealer)
     return isListed('DealershipStaff', dealer)
 end
 
-function fn.canHandleOffers(dealer)
-    return isListed('DealershipOfferStaff', dealer)
-end
-
 function fn.toInt(value)
     return math.floor(tonumber(value) or 0)
 end

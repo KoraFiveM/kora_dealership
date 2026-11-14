@@ -37,7 +37,7 @@ Run `/dealershipcreator` (ace `Config.adminPermission`, default `admin`) to open
 - `kora_dealership_offers`: customer offers on owned dealerships; accepted, denied, or auto-accepted
   after `Config.autoConfirmOffersDays`.
 
-Limits and tunables (caps, cooldowns, test drive length, distances) are in `config.lua`.
+Limits and tunables (caps, cooldowns, test drive length, distances) are in `shared/config.lua`.
 
 ## QBCore compatibility
 

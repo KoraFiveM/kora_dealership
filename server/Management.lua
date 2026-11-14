@@ -245,12 +245,19 @@ local function depositFunds(src, dealer, index, amount)
         return fn.fail(Kora.lang('s.errors.balance_limit'))
     end
 
-    if not exports.kora_core:removeMoney(src, 'bank', amount) then return fn.fail(Kora.lang('s.errors.bank_funds')) end
+    local cid = fn.citizenId(src)
+    if not cid or not exports.kora_core:removeMoney(src, 'bank', amount, 'Dealership deposit', true) then
+        return fn.fail(Kora.lang('s.errors.bank_funds'))
+    end
 
     local data = fn.management(dealer)
-    if not fn.updateManagement(dealer, { balance = data.balance + amount }) then
-        exports.kora_core:addMoney(src, 'bank', amount)
-        return fn.fail(Kora.lang('s.errors.deposit_failed'))
+    local saved, reason = fn.updateManagement(dealer, { balance = data.balance + amount })
+    if not saved then
+        if reason ~= 'indeterminate' and fn.creditPlayer(dealer, src, cid, 'bank', amount, 'Dealership refund') then
+            return fn.fail(Kora.lang('s.errors.deposit_failed'))
+        end
+        fn.flagSettlement(dealer, ('deposit, player %s, bank %d'):format(cid, amount))
+        return fn.fail(Kora.lang('s.errors.save_failed'))
     end
     return { balance = data.balance + amount }
 end
@@ -267,9 +274,13 @@ local function withdrawFunds(src, dealer, index, amount)
     if data.balance < amount then return fn.fail(Kora.lang('s.errors.dealership_funds')) end
 
     local balance = data.balance - amount
+    local cid = fn.citizenId(src)
+    if not cid then return fn.fail(Kora.lang('s.errors.withdrawal_failed')) end
     if not fn.updateManagement(dealer, { balance = balance }) then return fn.fail(Kora.lang('s.errors.withdrawal_failed')) end
 
-    exports.kora_core:addMoney(src, 'bank', amount)
+    if not fn.creditPlayer(dealer, src, cid, 'bank', amount, 'Dealership withdrawal') then
+        return fn.fail(Kora.lang('s.errors.withdrawal_failed'))
+    end
     return { balance = balance }
 end
 
@@ -292,14 +303,13 @@ local function orderVehicle(src, dealer, index, model, quantity)
         return fn.fail(Kora.lang('s.errors.order_funds', cost, data.balance))
     end
 
-    if not fn.updateManagement(dealer, { balance = data.balance - cost, spent = data.spent + cost }) then
-        return fn.fail(Kora.lang('s.errors.order_save_failed'))
-    end
-
-    if not fn.adjustStock(dealer, entry.model, amount) then
-        fn.updateManagement(dealer, { balance = data.balance, spent = data.spent })
-        return fn.fail(Kora.lang('s.errors.stock_add_failed'))
-    end
+    local statements = {}
+    local stock = fn.stageStock(dealer, entry.model, amount, statements)
+    if not stock then return fn.fail(Kora.lang('s.errors.stock_limit', Config.maxStock)) end
+    local management = fn.stageManagement(dealer, { balance = data.balance - cost, spent = data.spent + cost }, statements)
+    if not fn.commitSaleWrites(dealer, statements) then return fn.fail(Kora.lang('s.errors.order_save_failed')) end
+    management()
+    stock()
     return { record = Dealerships[dealer], cost = cost, amount = amount }
 end
 
@@ -339,17 +349,17 @@ local function getOffers(src, dealer, index)
 end
 
 -- Moves a pending offer to `status`. Exactly one caller can win; affectedRows says whether it was us.
-local function claimOffer(id, dealer, from, status, acceptor)
-    local result = Kora.sql.query(
-        'UPDATE `kora_dealership_offers` SET `status` = ?, `acceptor` = ? WHERE `id` = ? AND `dealership_id` = ? AND `status` = ?',
-        { status, acceptor, id, dealer, from }
-    )
-    return result ~= nil and result.affectedRows == 1
+local function offerDecision(id, dealer, status, acceptor)
+    return {
+        sql = 'UPDATE `kora_dealership_offers` SET `status` = ?, `acceptor` = ? WHERE `id` = ? AND `dealership_id` = ? AND `status` = ?',
+        params = { status, acceptor, id, dealer, 'pending' },
+        expectedRows = 1,
+    }
 end
 
 local function settleOffer(dealer, id, decision, acceptor)
     local record = Dealerships[dealer]
-    if not record or record.type ~= 'owned' then return fn.fail(Kora.lang('s.errors.not_owned')) end
+    if not record or record.type ~= 'owned' then return false, Kora.lang('s.errors.not_owned'), record ~= nil end
 
     local rows = Kora.sql.query(
         'SELECT * FROM `kora_dealership_offers` WHERE `id` = ? AND `dealership_id` = ? AND `status` = ?',
@@ -359,45 +369,30 @@ local function settleOffer(dealer, id, decision, acceptor)
     if not offer then return fn.fail(Kora.lang('s.errors.offer_handled')) end
 
     if decision == 'deny' then
-        if not claimOffer(id, dealer, 'pending', 'denied', acceptor) then return fn.fail(Kora.lang('s.errors.offer_handled')) end
-        return true
+        if fn.commitSaleWrites(dealer, { offerDecision(id, dealer, 'denied', acceptor) }) then return true end
+        return fn.fail(Kora.lang('s.errors.offer_handled'))
     end
 
     local entry = fn.findVehicle(record, offer.model)
-    if not entry then return fn.fail(Kora.lang('s.errors.vehicle_no_longer_sold')) end
-    if not fn.inStock(record, entry) then return fn.fail(Kora.lang('s.errors.stock_empty')) end
-
-    if not claimOffer(id, dealer, 'pending', 'accepted', acceptor) then return fn.fail(Kora.lang('s.errors.offer_handled')) end
+    if not entry then return false, Kora.lang('s.errors.vehicle_no_longer_sold'), true end
 
     local price = math.floor(tonumber(offer.offer_price) or 0)
-    local function release()
-        claimOffer(id, dealer, 'accepted', 'pending', Kora.sql.NULL)
-    end
+    local statements = { offerDecision(id, dealer, 'accepted', acceptor) }
+    local stock = fn.stageStock(dealer, offer.model, -1, statements)
+    if not stock then return false, Kora.lang('s.errors.stock_empty'), true end
+    local data = fn.management(dealer)
+    local management = fn.stageManagement(dealer, { balance = data.balance + price, income = data.income + price }, statements)
+    local paid, insufficient = fn.takeCash(offer.offeror, price)
+    if not paid then return false, Kora.lang('s.errors.offeror_cannot_afford'), insufficient end
 
-    if not fn.takeCash(offer.offeror, price) then
-        release()
-        return fn.fail(Kora.lang('s.errors.offeror_cannot_afford'))
-    end
-
-    if not fn.adjustStock(dealer, offer.model, -1) then
-        fn.giveCash(offer.offeror, price)
-        release()
-        return fn.fail(Kora.lang('s.errors.stock_empty'))
-    end
-
-    if not fn.creditSale(dealer, price) then
-        fn.adjustStock(dealer, offer.model, 1)
-        fn.giveCash(offer.offeror, price)
-        release()
-        return fn.fail(Kora.lang('s.errors.dealership_credit_failed'))
-    end
-
-    if not fn.deliverVehicle(offer.offeror, offer.model) then
-        fn.creditSale(dealer, -price)
-        fn.adjustStock(dealer, offer.model, 1)
-        fn.giveCash(offer.offeror, price)
-        release()
-        return fn.fail(Kora.lang('s.errors.offer_delivery_failed'))
+    local delivered, reason = fn.deliverSale(dealer, offer.offeror, offer.model, nil, statements, stock, management)
+    if not delivered then
+        if reason ~= 'indeterminate' then
+            local refunded, credited = pcall(fn.giveCash, offer.offeror, price)
+            if refunded and credited then return fn.fail(Kora.lang('s.errors.offer_delivery_failed')) end
+        end
+        fn.flagSettlement(dealer, ('offer %d, buyer %s, cash %d'):format(id, offer.offeror, price))
+        return fn.fail(Kora.lang('s.errors.sale_failed'))
     end
     return true
 end
@@ -415,17 +410,25 @@ local function resolveOffer(src, dealer, index, offerId, decision)
     return loadOffers(record)
 end
 
--- Offers past their auto-accept time are accepted; one that can no longer be completed is denied.
+-- Rotate through due offers so a retryable failure cannot block later offers.
+local dueCursor = 0
 local function processDueOffers()
     local due = Kora.sql.query(
-        'SELECT `id`, `dealership_id` FROM `kora_dealership_offers` WHERE `status` = ? AND `auto_accept_at` IS NOT NULL AND `auto_accept_at` <= NOW() LIMIT 20',
-        { 'pending' }
-    ) or {}
+        'SELECT `id`, `dealership_id` FROM `kora_dealership_offers` WHERE `status` = ? AND `auto_accept_at` <= NOW() AND `id` > ? ORDER BY `id` LIMIT 20',
+        { 'pending', dueCursor }
+    )
+    if not due then return end
 
     for _, row in ipairs(due) do
-        local ok = settleOffer(row.dealership_id, row.id, 'accept', 'system')
-        if not ok then claimOffer(row.id, row.dealership_id, 'pending', 'denied', 'system') end
+        dueCursor = row.id
+        fn.withDealerWrite(row.dealership_id, function()
+            local _, _, deny = settleOffer(row.dealership_id, row.id, 'accept', 'system')
+            if deny then
+                fn.commitSaleWrites(row.dealership_id, { offerDecision(row.id, row.dealership_id, 'denied', 'system') })
+            end
+        end)
     end
+    if #due < 20 then dueCursor = 0 end
 end
 
 local function autoAcceptLoop()
@@ -439,13 +442,13 @@ end
 CreateThread(autoAcceptLoop)
 
 Kora.callback.register('kora_dealership:management:openOwnerManagement', openOwnerManagement)
-Kora.callback.register('kora_dealership:management:addEmployee', addEmployee)
-Kora.callback.register('kora_dealership:management:removeEmployee', removeEmployee)
-Kora.callback.register('kora_dealership:management:savePermissions', savePermissions)
-Kora.callback.register('kora_dealership:management:saveSettings', saveSettings)
-Kora.callback.register('kora_dealership:management:savePlacement', savePlacement)
-Kora.callback.register('kora_dealership:management:depositFunds', depositFunds)
-Kora.callback.register('kora_dealership:management:withdrawFunds', withdrawFunds)
-Kora.callback.register('kora_dealership:management:orderVehicle', orderVehicle)
+Kora.callback.register('kora_dealership:management:addEmployee', fn.dealerWriter(addEmployee))
+Kora.callback.register('kora_dealership:management:removeEmployee', fn.dealerWriter(removeEmployee))
+Kora.callback.register('kora_dealership:management:savePermissions', fn.dealerWriter(savePermissions))
+Kora.callback.register('kora_dealership:management:saveSettings', fn.dealerWriter(saveSettings))
+Kora.callback.register('kora_dealership:management:savePlacement', fn.dealerWriter(savePlacement))
+Kora.callback.register('kora_dealership:management:depositFunds', fn.dealerWriter(depositFunds))
+Kora.callback.register('kora_dealership:management:withdrawFunds', fn.dealerWriter(withdrawFunds))
+Kora.callback.register('kora_dealership:management:orderVehicle', fn.dealerWriter(orderVehicle))
 Kora.callback.register('kora_dealership:management:getOffers', getOffers)
-Kora.callback.register('kora_dealership:management:resolveOffer', resolveOffer)
+Kora.callback.register('kora_dealership:management:resolveOffer', fn.dealerWriter(resolveOffer))
