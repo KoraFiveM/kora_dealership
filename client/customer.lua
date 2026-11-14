@@ -199,7 +199,7 @@ local function offerTermsNavigation(vehicle)
             id = 'terms', label = Kora.lang('c.customer.offer.label'), icon = 'DollarSign',
             content = {
                 title = Kora.lang('c.customer.offer.title'),
-                description = offering and Kora.lang('c.customer.offer.asking', vehicle.name, offerInput.amount) or '',
+                description = offering and Kora.lang('c.customer.offer.offered', vehicle.name, offerInput.amount) or '',
                 blocks = {
                     {
                         type = 'form', id = 'offer-terms', title = Kora.lang('c.customer.offer.step2'),

@@ -102,13 +102,15 @@ return {
             dealerName = 'Name',
             dealerCreate = 'Create',
             create = 'Create',
+            title = 'Dealership Creator',
             titleEditing = 'Dealership Creator · %s',
             editing = 'Editing now',
-            editingDescription = '%s � %s',
+            editingDescription = '%s · %s',
             ownerUnclaimed = 'unclaimed',
             save = 'Saved',
             failed = 'Save Failed',
             delete = {
+                title = 'Delete dealership',
                 message = 'Are you sure you want to delete this dealership? This action cannot be undone.',
                 confirmLabel = 'Delete',
                 confirm = 'Delete',
@@ -234,8 +236,10 @@ return {
             },
             offer = {
                 label = 'Offer',
+                title = 'Make an offer',
                 description = 'Make an offer on this vehicle.',
                 asking = '%s - Asking price $%d',
+                offered = '%s - Offer amount $%d',
                 step1 = 'Step 1 of 2: amount',
                 offerAmt = 'Offer amount',
                 step2 = 'Step 2 of 2: additional terms',
@@ -257,7 +261,9 @@ return {
             target = 'Browse dealership'
         },
         management = {
+            title = 'Dealership Management',
             orders = {
+                title = 'Order vehicles',
                 error = 'Could not place the order.',
                 stockDesc = 'In Stock: %d ·  $%d each wholesale',
                 vehData = '%s  ·  $%d each',
@@ -274,7 +280,6 @@ return {
             employees = {
                 add = 'Add Employees',
                 header = 'Employee Management',
-            title = 'Dealership Management',
                 description = 'Manage the employees of this dealership.',
                 addEmployee = 'Add employee',
                 addDesc = 'Provide the server ID of the player you want to hire.',
@@ -387,7 +392,7 @@ return {
             vehicleFallback = 'vehicle',
             dealerFallback = 'The dealer',
             sold = 'Sold to %s for $%d.',
-            stockItem = '%s � $%d � %d in stock',
+            stockItem = '%s · $%d · %d in stock',
             customerLabel = '%s (#%d)',
         },
         searchPlaceholder = 'Type to search vehicles',

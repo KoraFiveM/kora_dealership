@@ -65,7 +65,7 @@ local function pointZonesView(spec, record, keepLast)
     local entries = record[spec.field] or {}
     for index, entry in ipairs(entries) do
         items[#items + 1] = {
-            id = tostring(index), label = Kora.lang('c.creator.zone.index', spec.noun, index), icon = 'MapPin',
+            id = tostring(index), label = Kora.lang('c.creator.zone.stats.index', spec.noun, index), icon = 'MapPin',
             description = coordsLabel(entry.coords),
             -- keepLast hides the delete button on the final remaining entry
             actions = not (keepLast and #entries <= 1) and { deleteAction(spec.id .. ':remove:' .. index) } or nil,

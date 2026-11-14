@@ -57,84 +57,36 @@ local function ordersView()
     }
 end
 
-
-
 local function employeesView()
     local items = {}
-    local lang = Kora.lang
-    local toInt = fn.toInt
-
-    local fireLabel = lang('c.management.employees.fire')
-    local fireConfirm = lang('c.management.employees.fireConfirm')
-    local header = lang('c.management.employees.header')
-
-    for i = 1, #employees do
-        local employee = employees[i]
-        local citizenid = employee.citizenid
-
-        items[i] = {
-            id = citizenid,
-            label = employee.name,
-            icon = 'User',
-            description = lang(
-                'c.management.employees.summary',
-                citizenid,
-                toInt(employee.sales),
-                toInt(employee.income)
-            ),
+    for _, employee in ipairs(employees) do
+        items[#items + 1] = {
+            id = employee.citizenid, label = employee.name, icon = 'User',
+            description = Kora.lang('c.management.employees.summary', employee.citizenid, fn.toInt(employee.sales), fn.toInt(employee.income)),
             actions = {
-                {
-                    id = 'employees:remove:' .. citizenid,
-                    label = fireLabel,
-                    icon = 'UserMinus',
-                    variant = 'destructive',
-                    confirm = fireConfirm,
-                },
+                { id = 'employees:remove:' .. employee.citizenid, label = Kora.lang('c.management.employees.fire'), icon = 'UserMinus', variant = 'destructive',
+                    confirm = Kora.lang('c.management.employees.fireConfirm') },
             },
         }
     end
 
     return {
-        id = 'employees',
-        label = header,
-        icon = 'Users',
+        id = 'employees', label = Kora.lang('c.management.employees.header'), icon = 'Users',
         content = {
-            title = header,
-            description = lang('c.management.employees.description'),
+            title = Kora.lang('c.management.employees.header'), description = Kora.lang('c.management.employees.description'),
             blocks = {
                 {
-                    type = 'form',
-                    id = 'employee-add',
-                    title = lang('c.management.employees.add'),
-                    fields = {
-                        {
-                            id = 'serverId',
-                            label = lang('c.management.employees.serverId'),
-                            type = 'number',
-                            min = 1,
-                            required = true,
-                            description = lang('c.management.employees.addDesc'),
-                        },
-                    },
-                    action = {
-                        id = 'employees:add',
-                        label = lang('c.management.employees.addEmployee'),
-                    },
+                    type = 'form', id = 'employee-add', title = Kora.lang('c.management.employees.add'),
+                    fields = { { id = 'serverId', label = Kora.lang('c.management.employees.serverId'), type = 'number', min = 1, required = true,
+                        description = Kora.lang('c.management.employees.addDesc') } },
+                    action = { id = 'employees:add', label = Kora.lang('c.management.employees.addEmployee') },
                 },
-                {
-                    type = 'list',
-                    id = 'employee-list',
-                    layout = 'cards',
-                    title = lang('c.management.employees.current', #items),
-                    items = items,
-                    empty = lang('c.management.employees.empty'),
-                },
+                { type = 'list', id = 'employee-list', layout = 'cards', title = Kora.lang('c.management.employees.current',#items),
+                    items = items, empty = Kora.lang('c.management.employees.empty') },
             },
         },
     }
 end
-
-
 
 local function permissionsView()
     local items = {}

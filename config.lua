@@ -1,7 +1,7 @@
 Config = {}
 
 Config.command = 'dealershipcreator'
-Config.adminPermission = 'kora_core.admin'
+Config.adminPermission = 'admin'
 Config.maxPrice = 5000000
 Config.UsePDM = true -- auto loads a pdm set up fully
 Config.swapDistance = 6.0   -- server-checked max distance from the placement
