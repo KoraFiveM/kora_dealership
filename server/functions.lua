@@ -39,7 +39,7 @@ function fn.toAmount(value, max)
 end
 
 function fn.isAdmin(src)
-    return IsPlayerAceAllowed(src, Config.adminPermission or 'admin')
+    return IsPlayerAceAllowed(src, Config.adminPermission or 'kora_core.admin')
 end
 
 -- Validates a client-supplied list index and the player's distance to that point.
