@@ -11,6 +11,8 @@ description 'Dealership creator: build dealership zones, vehicle lists, placemen
 dependency 'kora_lib'
 dependency 'kora_sql'
 dependency 'kora_core'
+dependency 'kora_target'
+dependency 'kora_vehiclekeys'
 
 shared_scripts {
     '@kora_lib/init.lua',

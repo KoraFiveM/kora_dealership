@@ -1,4 +1,5 @@
 local busy = {}
+local finishSale
 
 local function authorizeSale(src, dealer, index)
     local record = type(dealer) == 'string' and Dealerships[dealer]
@@ -61,11 +62,12 @@ local function sell(src, request)
     if not entry then return fn.fail(Kora.lang('s.errors.vehicle_not_sold')) end
     if not fn.inStock(record, entry) then return fn.fail(Kora.lang('s.errors.stock_empty')) end
 
-    local spawn = fn.getFreeSpawn(record.spawns)
-    if not spawn then return fn.fail(Kora.lang('s.errors.spawn_unavailable')) end
+    if not fn.getFreeSpawn(record.spawns) then return fn.fail(Kora.lang('s.errors.spawn_unavailable')) end
 
     local finalPrice, priceErr = priceWithinBounds(dealer, entry, request.price)
     if not finalPrice then return fn.fail(priceErr) end
+    local customerCid = fn.citizenId(customer)
+    if not customerCid then return fn.fail(Kora.lang('s.errors.customer_unavailable')) end
 
     local answer = Kora.callback.trigger(customer, 'kora_dealership:sales:confirmPurchase', {
         seller = fn.playerName(src),
@@ -77,47 +79,60 @@ local function sell(src, request)
     local account = answer.payment == 'cash' and 'cash' or answer.payment == 'card' and 'bank'
     if not account then return fn.fail(Kora.lang('s.errors.payment_unselected')) end
 
-    -- Everything may have changed while the customer was deciding.
-    record, err = authorizeSale(src, dealer, request.index)
-    if not record then return fn.fail(err) end
-    if not isNearbyCustomer(src, customer) then return fn.fail(Kora.lang('s.errors.customer_unavailable')) end
+    return fn.withDealerWrite(dealer, function()
+        return finishSale(src, request, customer, customerCid, account, finalPrice)
+    end)
+end
 
-    entry = fn.findVehicle(record, request.model)
+finishSale = function(src, request, customer, customerCid, account, finalPrice)
+    local dealer = request.dealer
+    local record, err = authorizeSale(src, dealer, request.index)
+    if not record then return fn.fail(err) end
+    if fn.citizenId(customer) ~= customerCid or not isNearbyCustomer(src, customer) then
+        return fn.fail(Kora.lang('s.errors.customer_unavailable'))
+    end
+
+    local entry = fn.findVehicle(record, request.model)
     if not entry or not fn.inStock(record, entry) then return fn.fail(Kora.lang('s.errors.vehicle_unavailable')) end
+    local priceErr
     finalPrice, priceErr = priceWithinBounds(dealer, entry, finalPrice)
     if not finalPrice then return fn.fail(priceErr) end
 
-    if not exports.kora_core:removeMoney(customer, account, finalPrice) then
-        return fn.fail(Kora.lang('s.errors.customer_funds', Kora.lang(account == 'cash' and 's.errors.customer_payment_cash' or 's.errors.customer_payment_card'), finalPrice))
-    end
-
-    if not fn.adjustStock(dealer, entry.model, -1) then
-        exports.kora_core:addMoney(customer, account, finalPrice)
-        return fn.fail(Kora.lang('s.errors.vehicle_unavailable'))
-    end
-
-    local netId = fn.deliverVehicle(customer, entry.model, spawn)
-    if not netId then
-        fn.adjustStock(dealer, entry.model, 1)
-        exports.kora_core:addMoney(customer, account, finalPrice)
-        return fn.fail(Kora.lang('s.errors.vehicle_spawn_failed'))
-    end
-
-    local recorded, commission = fn.recordSale(dealer, src, {
+    local spawn = fn.getFreeSpawn(record.spawns)
+    if not spawn then return fn.fail(Kora.lang('s.errors.spawn_unavailable')) end
+    local statements = {}
+    local stock = fn.stageStock(dealer, entry.model, -1, statements)
+    if not stock then return fn.fail(Kora.lang('s.errors.vehicle_unavailable')) end
+    local sellerCid, customerName = fn.citizenId(src), fn.playerName(customer)
+    local management, commission = fn.stageStaffSale(dealer, src, {
         model = entry.model,
         vehicle = entry.name,
         price = finalPrice,
-        customer = fn.citizenId(customer),
-        customerName = fn.playerName(customer),
-    })
-    if not recorded then
-        print(('[kora_dealership] failed to record sale of %s at %s for $%d'):format(entry.model, dealer, finalPrice))
+        customer = customerCid,
+        customerName = customerName,
+    }, statements)
+    if not exports.kora_core:removeMoney(customer, account, finalPrice, 'Dealership sale', true) then
+        return fn.fail(Kora.lang('s.errors.customer_funds', Kora.lang(account == 'cash' and 's.errors.customer_payment_cash' or 's.errors.customer_payment_card'), finalPrice))
+    end
+
+    local netId, reason = fn.deliverSale(dealer, customer, entry.model, spawn, statements, stock, management, customerCid)
+    if not netId then
+        if reason ~= 'indeterminate'
+            and fn.creditPlayer(dealer, customer, customerCid, account, finalPrice, 'Dealership refund') then
+            return fn.fail(Kora.lang('s.errors.vehicle_spawn_failed'))
+        end
+        fn.flagSettlement(dealer, ('staff sale, buyer %s, %s %d'):format(customerCid, account, finalPrice))
+        return fn.fail(Kora.lang('s.errors.sale_failed'))
+    end
+
+    if commission > 0 and not fn.creditPlayer(dealer, src, sellerCid, 'bank', commission, 'Dealership commission') then
+        return fn.fail(Kora.lang('s.errors.sale_commission_pending'))
     end
 
     return {
         amount = finalPrice,
-        commission = commission or 0,
-        customer = fn.playerName(customer),
+        commission = commission,
+        customer = customerName,
         vehicleNetId = netId,
         record = Dealerships[dealer],
     }

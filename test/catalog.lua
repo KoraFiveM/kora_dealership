@@ -1,5 +1,6 @@
 -- Run from kora_dealership: lua5.4 test/catalog.lua
 local app, reads = nil, 0
+local confirmRemoval = false
 exports = { kora_core = { allShared = function(_, registry)
     assert(registry == 'vehicles')
     reads = reads + 1
@@ -17,6 +18,11 @@ fn = {
         return function() return { navigation = build() } end, error
     end,
     vehicleName = function(vehicle) return vehicle.name end,
+    findVehicle = function(vehicles, model)
+        for _, vehicle in ipairs(vehicles) do
+            if vehicle.model == model then return vehicle end
+        end
+    end,
     getVehicleImage = function() end,
     notice = function(message) return { message = message } end,
 }
@@ -32,12 +38,18 @@ Kora = {
         end
         return record
     end },
-    nui = { registerApp = function(definition) app = definition end, updateApp = function() end },
+    nui = {
+        registerApp = function(definition) app = definition end,
+        updateApp = function() end,
+        openAlert = function() return { confirmed = confirmRemoval } end,
+    },
 }
 RegisterCommand = function() end
 dofile('client/creator.lua')
 local function options()
-    return app.onAction('select:shop', {}).navigation[4].content.blocks[1].fields[1].options
+    local picker = app.onAction('select:shop', {}).navigation[4].content.blocks[1].fields[1]
+    assert(picker.searchable, 'the catalog picker supports search')
+    return picker.options
 end
 local catalog = options()
 assert(#catalog == 3)
@@ -47,6 +59,7 @@ assert(options() == catalog and reads == 1, 'the existing catalog cache is retai
 print('kora_dealership: native vehicle records retain model values, labels, sorting and caching')
 
 local blocks = app.onAction('select:shop', {}).navigation[4].content.blocks
+assert(blocks[2].layout == 'list' and blocks[2].pageSize == 12, 'the vehicle list uses paginated rows')
 local priceAction = blocks[2].items[1].actions[1]
 assert(priceAction.fields[1].default == 12000 and priceAction.fields[1].max == Config.maxPrice)
 local updated = app.onAction(priceAction.id, { value = { price = 15000 } })
@@ -54,3 +67,10 @@ assert(record.vehicles[1].model == 'sultan' and record.vehicles[1].price == 1500
 assert(record.vehicles[2].model == 'adder' and record.vehicles[2].price == 25000)
 assert(updated.navigation[4].content.blocks[2].items[1].actions[1].fields[1].default == 15000)
 print('kora_dealership: creator vehicle card saves and refreshes the selected price')
+
+local removeAction = updated.navigation[4].content.blocks[2].items[1].actions[2]
+app.onAction(removeAction.id, {})
+assert(#record.vehicles == 2, 'cancelling keeps both vehicles')
+confirmRemoval = true
+app.onAction(removeAction.id, {})
+assert(#record.vehicles == 1 and record.vehicles[1].model == 'adder', 'confirmation removes the chosen vehicle')

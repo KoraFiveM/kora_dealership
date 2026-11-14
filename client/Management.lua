@@ -41,15 +41,21 @@ local function ordersView()
             type = 'form', id = 'order', title = Kora.lang('c.management.orders.title'),
             description = Kora.lang('c.management.orders.formDesc', funds.balance or 0, Config.maxOrderQuantity, Config.maxStock),
             fields = {
-                { id = 'model',     label = Kora.lang('c.management.orders.vehLabel'),      type = 'select',  options = options, required = true },
+                {
+                    id = 'model', label = Kora.lang('c.management.orders.vehLabel'), type = 'select',
+                    options = options, searchable = true, required = true,
+                },
                 { id = 'quantity',  label = Kora.lang('c.management.orders.quantityLabel'), type = 'number', min = 1, max = Config.maxOrderQuantity, default = 1, required = true },
             },
-            action = { id = 'orders:place', label = Kora.lang('c.management.orders.placeOrder'), confirm = Kora.lang('c.management.orders.confirmOrder', funds.balance or 0) },
+            action = { id = 'orders:place', label = Kora.lang('c.management.orders.placeOrder') },
+        }
+        blocks[#blocks + 1] = {
+            type = 'list', id = 'order-list', layout = 'list', imageFit = 'contain', imageAspect = 'wide',
+            searchable = #items > 6, pageSize = 12, items = items,
         }
     else
         blocks[#blocks + 1] = { type = 'empty', title = Kora.lang('c.management.orders.noVehs') }
     end
-    blocks[#blocks + 1] = { type = 'list', layout = 'cards', id = 'order-list', title = Kora.lang('c.management.orders.title'), items = items, empty = Kora.lang('c.management.orders.noVehs') }
 
     return {
         id = 'orders', label = Kora.lang('c.management.orders.title'), icon = 'Truck',
@@ -259,10 +265,10 @@ local function offersView()
             title = Kora.lang('c.management.offers.header'), description = Kora.lang('c.management.offers.description'),
             blocks = {
                 { type = 'actions', actions = { { id = 'offers:refresh', label = Kora.lang('c.management.offers.refresh'), variant = 'outline' } } },
-                { type = 'list', id = 'offers-pending', title = (Kora.lang('c.management.offers.pending', #pendingItems)), layout = 'cards',
-                    items = pendingItems, empty = Kora.lang('c.management.offers.emptyPending') },
-                { type = 'list', id = 'offers-history', title = (Kora.lang('c.management.offers.history', #historyItems)), layout = 'cards',
-                    items = historyItems, empty = Kora.lang('c.management.offers.emptyHistory') },
+                { type = 'list', id = 'offers-pending', title = Kora.lang('c.management.offers.pending', #pendingItems),
+                    layout = 'list', pageSize = 8, items = pendingItems, empty = Kora.lang('c.management.offers.emptyPending') },
+                { type = 'list', id = 'offers-history', title = Kora.lang('c.management.offers.history', #historyItems),
+                    layout = 'list', pageSize = 8, items = historyItems, empty = Kora.lang('c.management.offers.emptyHistory') },
             },
         },
     }
@@ -385,6 +391,12 @@ end
 
 local function onOrderAction(actionId, values)
     if actionId ~= 'orders:place' or not can('orderVehicles') then return nil end
+    local confirmation = Kora.nui.openAlert({
+        title = Kora.lang('c.management.orders.placeOrder'),
+        message = Kora.lang('c.management.orders.confirmOrder'),
+        confirmLabel = Kora.lang('c.management.orders.placeOrder'),
+    })
+    if not confirmation or not confirmation.confirmed then return {} end
     local result, err = Kora.callback.trigger('kora_dealership:management:orderVehicle', dealerId, indexId, values.model, values.quantity)
     if not result then return fail(err or Kora.lang('c.management.orders.error')) end
     record = result.record

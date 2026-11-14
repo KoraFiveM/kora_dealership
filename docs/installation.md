@@ -12,7 +12,7 @@ Kora Dealership is a dealership creator and showroom: an in-game admin tool to d
 
 1. **Add the folder** — Place `kora_dealership` in your resources directory (on the Kora recipe it is `resources/[kora]/kora_dealership`).
 
-2. **Dependencies** — The manifest declares `dependency 'kora_lib'`, `dependency 'kora_sql'` and `dependency 'kora_core'`, and loads `@kora_lib/init.lua` then `@kora_core/init.lua` as shared scripts before `shared/config.lua` and `shared/functions.lua`. The README also lists `kora_vehiclekeys` (keys for delivered vehicles) and `kora_target` (the browse/sales/management targets) as runtime dependencies, though they are not declared as `dependency` lines in the manifest — ensure both before `kora_dealership`.
+2. **Dependencies** — The manifest declares `kora_lib`, `kora_sql`, `kora_core`, `kora_target` and `kora_vehiclekeys`. It loads `@kora_lib/init.lua` then `@kora_core/init.lua` as shared scripts before `shared/config.lua` and `shared/functions.lua`.
 
 3. **Start order** — Start after kora_lib, kora_core, kora_sql, kora_vehiclekeys and kora_target.
 
@@ -27,7 +27,7 @@ Kora Dealership is a dealership creator and showroom: an in-game admin tool to d
 
 4. **Grant the creator permission** — Add the ace named by `Config.adminPermission` (default `admin`) to your admins, e.g. `add_ace group.admin admin allow`. `/dealershipcreator` (the command name is `Config.command`) is registered for everyone, but every creator callback re-checks `IsPlayerAceAllowed(src, Config.adminPermission)` on the server, so opening it without the ace shows nothing usable.
 
-5. **Nothing to import** — On start, kora_sql creates `kora_dealerships`, `kora_dealership_management` and `kora_dealership_offers`, and adds any missing columns to existing ones. With `Config.UsePDM = true` (the default) it also seeds a public `pdm` dealership (a prebuilt vehicle list, zone and placements) if it is missing (kora_sql seeds with `INSERT IGNORE` each boot).
+5. **Nothing to import** — On start, kora_sql creates `kora_dealerships`, `kora_dealership_management` and `kora_dealership_offers`, and adds any missing columns to existing ones. The resource then waits up to 60 seconds for the externally owned `players` and `player_vehicles` tables before loading and publishing dealerships. With `Config.UsePDM = true` (the default) it also seeds a public `pdm` dealership (a prebuilt vehicle list, zone and placements) if it is missing (kora_sql seeds with `INSERT IGNORE` each boot).
 
 ## Dealership types
 
@@ -37,7 +37,7 @@ Kora Dealership is a dealership creator and showroom: an in-game admin tool to d
 
 ## If it does not work
 
-- Console prints `kora_sql was unavailable; dealerships are not loaded until restart` if kora_sql was not ready within 60 s at boot — restart kora_dealership once the database is reachable.
+- Console reports that kora_sql was unavailable if it was not ready within 60 s, or that player tables were unavailable if `players`/`player_vehicles` did not appear within 60 s. In either case dealerships are not loaded until restart; restart kora_dealership after the database and table owners are ready.
 - `/dealershipcreator` opens but every list/save action fails silently (notices say the admin permission is required): grant `Config.adminPermission`.
 - A showroom, sales or management interaction point does not appear: the dealership needs a zone drawn first (placements/spawns/zones can only be added inside the zone, see "Zone-gated point placement" below), or `kora_target`/`kora_vehiclekeys` is not running.
 
@@ -50,13 +50,8 @@ Declared in `fxmanifest.lua` (`dependency`):
 | `kora_lib` | NUI apps, callbacks, notifications, zones, entities, raycast, distance checks, locales |
 | `kora_sql` | Schema creation (`ensureTables`) and all queries |
 | `kora_core` | Player data, money (`removeMoney`, `addMoney`), shared vehicles (`getShared`, `allShared`) |
-
-Used but not declared as dependencies:
-
-| Resource | Used for |
-| --- | --- |
-| `kora_vehiclekeys` | `exports.kora_vehiclekeys:giveKeys` for test-drive and purchased vehicles (server) |
 | `kora_target` | Target zones at management and sale points, and the "browse" option on display vehicles (client) |
+| `kora_vehiclekeys` | `exports.kora_vehiclekeys:giveKeys` for test-drive and purchased vehicles (server) |
 
 It also reads and writes the `players` and `player_vehicles` tables owned by other resources. See [Database](./database.md).
 

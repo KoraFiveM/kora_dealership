@@ -94,28 +94,26 @@ local function confirmPurchase(src, dealer, index, model)
     if not spawn then return fn.fail(Kora.lang('s.errors.spawn_unavailable')) end
 
     local price = priceFor(src, dealer, record, entry)
-    if not exports.kora_core:removeMoney(src, 'bank', price) then return fn.fail(Kora.lang('s.errors.purchase_funds')) end
-
-    local function refund(restoreStock, reverseCredit)
-        if reverseCredit then fn.creditSale(dealer, -price) end
-        if restoreStock then fn.adjustStock(dealer, entry.model, 1) end
-        exports.kora_core:addMoney(src, 'bank', price)
+    local statements = {}
+    local stock = fn.stageStock(dealer, entry.model, -1, statements)
+    if not stock then return fn.fail(Kora.lang('s.errors.stock_empty')) end
+    local management
+    if record.type == 'owned' then
+        local data = fn.management(dealer)
+        management = fn.stageManagement(dealer, { balance = data.balance + price, income = data.income + price }, statements)
+    end
+    local cid = fn.citizenId(src)
+    if not cid or not exports.kora_core:removeMoney(src, 'bank', price, 'Dealership purchase', true) then
+        return fn.fail(Kora.lang('s.errors.purchase_funds'))
     end
 
-    if not fn.adjustStock(dealer, entry.model, -1) then
-        refund(false, false)
-        return fn.fail(Kora.lang('s.errors.stock_empty'))
-    end
-
-    if not fn.creditSale(dealer, price) then
-        refund(true, false)
-        return fn.fail(Kora.lang('s.errors.purchase_failed_refunded'))
-    end
-
-    local netId = fn.deliverVehicle(src, entry.model, spawn)
+    local netId, reason = fn.deliverSale(dealer, src, entry.model, spawn, statements, stock, management, cid)
     if not netId then
-        refund(true, true)
-        return fn.fail(Kora.lang('s.errors.purchase_spawn_failed'))
+        if reason ~= 'indeterminate' and fn.creditPlayer(dealer, src, cid, 'bank', price, 'Dealership refund') then
+            return fn.fail(Kora.lang('s.errors.purchase_failed_refunded'))
+        end
+        fn.flagSettlement(dealer, ('purchase, buyer %s, bank %d'):format(cid, price))
+        return fn.fail(Kora.lang('s.errors.sale_failed'))
     end
 
     fn.notify(src, Kora.lang('s.success.purchase'), 'success')
@@ -160,7 +158,7 @@ local function makeOffer(src, dealer, index, model, amount, terms)
 end
 
 Kora.callback.register('kora_dealership:testDrive', testDrive)
-Kora.callback.register('kora_dealership:confirmPurchase', confirmPurchase)
+Kora.callback.register('kora_dealership:confirmPurchase', fn.dealerWriter(confirmPurchase))
 Kora.callback.register('kora_dealership:makeOffer', makeOffer)
 
 RegisterNetEvent('kora_dealership:server:testDriveEnded', onTestDriveEnded)
