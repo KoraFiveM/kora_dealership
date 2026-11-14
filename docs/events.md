@@ -44,7 +44,7 @@ Client to server communication uses `Kora.callback` (kora_lib). Callbacks return
 
 | Event | Direction | Description |
 | --- | --- | --- |
-| `kora_dealership:server:testDriveEnded` | client to server | Ends the sender's test drive and deletes the vehicle. Ignored when triggered by another resource. |
+| `kora_dealership:server:testDriveEnded` | client to server | Ends the sender's test drive, deletes the vehicle and revokes its temporary keys. Ignored when triggered by another resource. |
 
 ## Local events
 

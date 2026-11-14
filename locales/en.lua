@@ -68,6 +68,7 @@ return {
             test_drive_active = 'You are already on a test drive.',
             test_vehicle_spawn_failed = 'Could not spawn the test vehicle.',
             test_vehicle_network_failed = 'Could not network the test vehicle.',
+            test_vehicle_keys_failed = 'Could not grant keys for the test vehicle.',
             stock_empty = 'That vehicle is out of stock.',
             spawn_unavailable = 'There is no free spawn point right now. Try again shortly.',
             purchase_funds = 'Not enough money in your bank account.',

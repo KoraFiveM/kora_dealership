@@ -68,6 +68,7 @@ return {
             test_drive_active = 'Já estás a fazer um test drive.',
             test_vehicle_spawn_failed = 'Não foi possível criar o veículo de teste.',
             test_vehicle_network_failed = 'Não foi possível sincronizar o veículo de teste.',
+            test_vehicle_keys_failed = 'Não foi possível entregar as chaves do veículo de teste.',
             stock_empty = 'Esse veículo está esgotado.',
             spawn_unavailable = 'Não há pontos de saída livres. Tenta novamente daqui a pouco.',
             purchase_funds = 'Não tens dinheiro suficiente na tua conta bancária.',

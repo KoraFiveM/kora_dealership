@@ -8,6 +8,12 @@ local function endTestDrive(src)
 
     if GetPlayerPed(src) ~= 0 then SetPlayerRoutingBucket(src, data.oldBucket) end
     if DoesEntityExist(data.vehicle) then DeleteEntity(data.vehicle) end
+    if data.plate then
+        local ok, err = pcall(function() return exports.kora_vehiclekeys:removeKeys(src, data.plate) end)
+        if not ok then
+            print(('[kora_dealership] could not revoke test-drive keys for %s: %s'):format(data.plate, tostring(err)))
+        end
+    end
 end
 
 -- Resolves the dealership, validates the player is at the display vehicle, and finds the model.
@@ -50,12 +56,18 @@ local function testDrive(src, dealer, index, model)
     end
 
     local plate = ('TD%06d'):format(src)
+    data.plate = plate
     SetVehicleNumberPlateText(vehicle, plate)
-    exports.kora_vehiclekeys:giveKeys(src, plate)
-    TaskWarpPedIntoVehicle(GetPlayerPed(src), vehicle, -1)
 
-    local function expire() expireTestDrive(src, data) end
-    SetTimeout(Config.testDriveSeconds * 1000, expire)
+    SetTimeout(Config.testDriveSeconds * 1000, function() expireTestDrive(src, data) end)
+    local ok, granted = pcall(function() return exports.kora_vehiclekeys:giveKeys(src, plate) end)
+    if not ok or not granted then
+        expireTestDrive(src, data)
+        return fn.fail(Kora.lang('s.errors.test_vehicle_keys_failed'))
+    end
+
+    if testDrives[src] ~= data then return fn.fail(Kora.lang('s.errors.test_vehicle_spawn_failed')) end
+    TaskWarpPedIntoVehicle(GetPlayerPed(src), vehicle, -1)
     return netId
 end
 

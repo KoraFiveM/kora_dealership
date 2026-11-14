@@ -50,7 +50,11 @@ Dealerships.shop = { id = 'shop', type = 'owned', vehicles = { { model = 'sultan
 DealerData.shop = { balance = 500, income = 0, spent = 0, sales = {}, employees = {}, permissions = {}, settings = {} }
 Kora.lang = function(key) return key end
 local success = false
-Kora.sql.transactionChecked = function(writes)
+local operationKeys = {}
+Kora.sql.transactionChecked = function(writes, operation)
+    assert(type(operation.key) == 'string' and type(operation.fingerprint) == 'string')
+    assert(not operationKeys[operation.key], 'independent checked writes must have distinct operation keys')
+    operationKeys[operation.key] = true
     assert(#writes == 3 and writes[1].sql:find('player_vehicles', 1, true))
     assert(writes[2].sql:find('kora_dealerships', 1, true))
     assert(writes[3].sql:find('kora_dealership_management', 1, true))
