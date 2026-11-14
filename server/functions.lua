@@ -9,6 +9,8 @@ local defaultSettings = { maxPriceOverride = 10, commission = 5, employeeDiscoun
 fn.defaultSettings = defaultSettings
 
 local writing, uncertain = {}, {}
+local operationSession = ('kora_dealership:%d:%08x'):format(os.time(), math.random(0, 0x7fffffff))
+local operationSequence = 0
 
 -- Keep cached dealer snapshots stable across awaited writes.
 function fn.withDealerWrite(dealer, action, ...)
@@ -36,7 +38,13 @@ function fn.flagSettlement(dealer, detail)
 end
 
 function fn.commitSaleWrites(dealer, statements)
-    local called, outcome, err = pcall(Kora.sql.transactionChecked, statements)
+    -- The SQL export appends the caller name, so pass operation metadata explicitly.
+    operationSequence = operationSequence + 1
+    local operation = {
+        key = ('%s:%d'):format(operationSession, operationSequence),
+        fingerprint = json.encode(statements),
+    }
+    local called, outcome, err = pcall(Kora.sql.transactionChecked, statements, operation)
     if called and outcome and outcome.success then return true end
     if not called or not outcome or outcome.code == 'indeterminate' then
         fn.flagSettlement(dealer, tostring(err or (type(outcome) == 'table' and outcome.message) or outcome))
