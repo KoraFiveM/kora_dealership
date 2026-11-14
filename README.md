@@ -13,7 +13,7 @@ Dealerships for QBCore: an admin creator, a customer showroom (display swaps, te
 purchases, offers), a sales target for staff, and an owner management portal (employees,
 permissions, funds, stock orders, offers, display editing).
 
-Run `/dealershipcreator` (ace `Config.adminPermission`, default `admin`) to open the creator.
+Run `/dealershipcreator` (ace `Config.adminPermission`, default `kora_core.admin`) to open the creator.
 
 ## Setup
 
