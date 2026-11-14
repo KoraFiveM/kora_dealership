@@ -128,7 +128,24 @@ local function vehiclesView()
             label = fn.vehicleName(vehicle),
             description = Kora.lang('s.price', tonumber(vehicle.price) or 1),
             icon = 'Car',
-            action = 'vehicles:edit:' .. vehicle.model,
+            actions = {
+                {
+                    id = 'vehicles:price:' .. vehicle.model,
+                    label = Kora.lang('c.creator.vehicles.form.sale'),
+                    submitLabel = Kora.lang('c.creator.vehicles.form.save'),
+                    fields = {
+                        {
+                            id = 'price',
+                            type = 'number',
+                            label = Kora.lang('c.creator.vehicles.form.sale'),
+                            default = tonumber(vehicle.price) or 1,
+                            min = 1,
+                            max = Config.maxPrice,
+                            required = true,
+                        },
+                    },
+                },
+            },
             image = fn.getVehicleImage(vehicle.model),
         }
     end
@@ -266,7 +283,8 @@ local function onAction(actionId, context)
     if actionId == 'zone:clear' then return saveSelected({ clearZone = true, zone = nil }) end
 
     if actionId == 'vehicles:add' then return addVehicle(values.model) end
-    if actionId == 'vehicles:price' then return setVehiclePrice(values.model, tonumber(values.price)) end
+    local priceModel = actionId:match('^vehicles:price:(.+)$')
+    if priceModel then return setVehiclePrice(priceModel, tonumber(values.price)) end
     local removeModel = actionId:match('^vehicles:remove:(.+)$')
     if removeModel then return removeVehicle(removeModel) end
 

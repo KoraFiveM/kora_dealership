@@ -100,7 +100,6 @@ return {
             noDealerships = 'No dealerships yet.',
             createDealership = 'Create dealership',
             dealerName = 'Name',
-            dealerCreate = 'Create',
             create = 'Create',
             title = 'Dealership Creator',
             titleEditing = 'Dealership Creator · %s',
@@ -112,7 +111,6 @@ return {
             delete = {
                 title = 'Delete dealership',
                 message = 'Are you sure you want to delete this dealership? This action cannot be undone.',
-                confirmLabel = 'Delete',
                 confirm = 'Delete',
                 pass = 'Deleted',
                 fail = 'Delete Failed',
@@ -128,7 +126,6 @@ return {
                     owned = 'Owned',
                     price = 'Price (if for sale)',
                     owner = 'Owner citizenid (if owned)',
-                    description = 'Only kept while Access is set to Owned -- cleared otherwise.',
                     ownerDesc = 'Only kept while Access is set to Owned -- cleared otherwise.',
                     save = 'Save changes',
                 },
@@ -159,7 +156,6 @@ return {
                 form = {
                     add = 'Add Vehicles',
                     veh = 'Vehicle',
-                    priceHead = 'Vehicle Price',
                     sale = 'Sale Price',
                     save = 'Save Price',
                     current = 'Current Vehicles | Amount %s',
@@ -168,7 +164,6 @@ return {
                 add = {
                     vehReq = 'Vehicle is required.',
                     vehExists = 'That vehicle is already added.',
-                    vehPrice = 'Vehicle price is required.',
                 },
                 price = {
                     vehPrice = 'Vehicle price is required.',
@@ -192,7 +187,6 @@ return {
                 description = 'Manage the spawn points for vehicles in this dealership.',
                 form = {
                     add = 'Add a spawn point',
-                    description = 'Aim at the location where the vehicle should spawn and place it.',
                 },
                 empty = 'No spawn points yet.',
                 listTitle = 'Current spawn points',
@@ -237,7 +231,6 @@ return {
             offer = {
                 label = 'Offer',
                 title = 'Make an offer',
-                description = 'Make an offer on this vehicle.',
                 asking = '%s - Asking price $%d',
                 offered = '%s - Offer amount $%d',
                 step1 = 'Step 1 of 2: amount',
@@ -246,8 +239,6 @@ return {
                 next = 'Next',
                 terms = 'Additional terms',
                 submit = 'Submit offer',
-                success = 'Offer submitted successfully.',
-                error = 'Could not submit the offer.',
                 optional = 'Additional terms are optional.',
             },
             test = {
@@ -274,7 +265,6 @@ return {
                 vehLabel = 'Vehicle',
                 quantityLabel = 'Quantity',
                 noVehs = 'This dealership has no vehicles to order. Ask an admin to add some.',
-                yourVeh = 'Your vehicles',
                 ordered = 'Ordered %d for $%d.',
             },
             employees = {
@@ -285,13 +275,10 @@ return {
                 addDesc = 'Provide the server ID of the player you want to hire.',
                 serverId = 'Server ID',
                 summary = '%s | sales: %d | income: $%d',
-                addButton = 'Add employee',
                 current = 'Current employees (%d)',
                 empty = 'No employees yet.',
                 fire = 'Remove employee',
                 fireConfirm = 'Are you sure you want to remove this employee?',
-                errorRemove = 'Could not remove the employee.',
-                errorAdd = 'Could not add the employee.',
                 addError = 'Could not add the employee.',
                 removeError = 'Could not remove the employee.',
                 added = 'Employee added successfully.',
@@ -302,9 +289,6 @@ return {
                 empty = 'Add an employee on the Employees page first.',
                 description = 'Click a permission to turn it on or off for that employee.',
                 allowed = '%s | %d of %d allowed',
-                granted = 'Permission granted.',
-                revoked = 'Permission revoked.',
-                errorSave = 'Could not save permissions.',
                 saveError = 'Could not save permissions.',
                 saved = 'Permissions saved.',
             },
@@ -395,6 +379,5 @@ return {
             stockItem = '%s · $%d · %d in stock',
             customerLabel = '%s (#%d)',
         },
-        searchPlaceholder = 'Type to search vehicles',
     }
 }

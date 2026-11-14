@@ -9,7 +9,7 @@ All screens are `kora_lib` NUI apps.
 
 ## Dealership Creator
 
-Opened with `/dealershipcreator`. Views: Dealerships (list and create), Data (name, access, price, owner, delete), Zone (draw polygon or clear), Vehicles (add from the shared catalog), Display placements, Spawn points, Management points, Sale points. Placements and points are added by aiming at the world; the app closes while aiming and reopens after saving.
+Opened with `/dealershipcreator`. Views: Dealerships (list and create), Data (name, access, price, owner, delete), Zone (draw polygon or clear), Vehicles (add from the shared catalog and edit prices), Display placements, Spawn points, Management points, Sale points. Placements and points are added by aiming at the world; the app closes while aiming and reopens after saving.
 
 ## Dealership Showroom
 

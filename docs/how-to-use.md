@@ -16,7 +16,7 @@ Three different people use this resource: an admin building the dealership, a cu
 
 3. **Draw the zone** — On the Zone page, "Draw zone" calls `Kora.zones.startCreator('poly')` (the shared Kora Lib polygon drawing tool) and saves the resulting points/thickness. Every placement, spawn point, management zone and sale zone added afterwards must fall inside this polygon (new points only — points that already existed are grandfathered in in case the zone shrinks).
 
-4. **Pick vehicles and prices** — On the Vehicles page, add a model from the shared vehicle catalogue (`exports.kora_core:allShared('vehicles')`); its price defaults to the catalogue price and can be overridden per dealership (clamped to `Config.maxPrice`, 5,000,000 by default).
+4. **Pick vehicles and prices** — On the Vehicles page, add a model from the shared vehicle catalogue (`exports.kora_core:allShared('vehicles')`). It starts at the catalogue price. To override it for this dealership, open **Sale Price** on the vehicle card and select **Save Price**. The maximum is `Config.maxPrice` (5,000,000 by default).
 
 5. **Place display cars, spawns and the two target zones** — On Placements, Spawns, Management and Sales pages, clicking "Add" closes the app and starts an aim-based placement tool (`Kora.raycast.getCoords`): aim at a point in the world (or at an object of the chosen model, for a placement) and the coordinate is saved to the dealership on the server.
 

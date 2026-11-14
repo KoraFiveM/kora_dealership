@@ -431,23 +431,18 @@ function fn.canEmployeeDo(src, dealer, action)
 end
 
 function fn.publishStaff()
-    local staff, offerStaff = {}, {}
+    local staff = {}
     for dealer, record in pairs(Dealerships) do
         if record.type == 'owned' and record.owner then
             staff[dealer] = { [record.owner] = true }
-            offerStaff[dealer] = { [record.owner] = true }
             for _, employee in ipairs(fn.management(dealer).employees) do
                 if hasPermission(dealer, employee.citizenid, 'sellVehicles') then
                     staff[dealer][employee.citizenid] = true
-                end
-                if hasPermission(dealer, employee.citizenid, 'handleOffers') then
-                    offerStaff[dealer][employee.citizenid] = true
                 end
             end
         end
     end
     GlobalState.DealershipStaff = staff
-    GlobalState.DealershipOfferStaff = offerStaff -- who may open the management Offers page
 end
 
 function fn.saveDealership(record)

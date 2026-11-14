@@ -100,7 +100,6 @@ return {
             noDealerships = 'Ainda não há stands.',
             createDealership = 'Criar stand de automóveis',
             dealerName = 'Nome',
-            dealerCreate = 'Criar',
             create = 'Criar',
             title = 'Criador de Stands',
             titleEditing = 'Criador de Stands · %s',
@@ -112,7 +111,6 @@ return {
             delete = {
                 title = 'Eliminar stand',
                 message = 'Tens a certeza de que pretendes eliminar este stand? Esta ação não pode ser anulada.',
-                confirmLabel = 'Eliminar',
                 confirm = 'Eliminar',
                 pass = 'Eliminado',
                 fail = 'Falha ao Eliminar',
@@ -128,7 +126,6 @@ return {
                     owned = 'Propriedade privada',
                     price = 'Preço (se à venda)',
                     owner = 'ID de cidadão do proprietário (se privado)',
-                    description = 'Apenas mantido enquanto o Acesso estiver definido como Propriedade privada — caso contrário, é limpo.',
                     ownerDesc = 'Apenas mantido enquanto o Acesso estiver definido como Propriedade privada — caso contrário, é limpo.',
                     save = 'Guardar alterações',
                 },
@@ -159,7 +156,6 @@ return {
                 form = {
                     add = 'Adicionar Veículos',
                     veh = 'Veículo',
-                    priceHead = 'Preço do Veículo',
                     sale = 'Preço de Venda',
                     save = 'Guardar Preço',
                     current = 'Veículos Atuais | Quantidade %s',
@@ -168,7 +164,6 @@ return {
                 add = {
                     vehReq = 'O veículo é obrigatório.',
                     vehExists = 'Esse veículo já se encontra adicionado.',
-                    vehPrice = 'O preço do veículo é obrigatório.',
                 },
                 price = {
                     vehPrice = 'O preço do veículo é obrigatório.',
@@ -192,7 +187,6 @@ return {
                 description = 'Gere os pontos de saída (spawn) para veículos neste stand.',
                 form = {
                     add = 'Adicionar ponto de saída',
-                    description = 'Aponta para a localização onde o veículo deve sair e coloca-o.',
                 },
                 empty = 'Ainda sem pontos de saída.',
                 listTitle = 'Pontos de saída atuais',
@@ -237,7 +231,6 @@ return {
             offer = {
                 label = 'Proposta',
                 title = 'Fazer uma proposta',
-                description = 'Faz uma proposta por este veículo.',
                 asking = '%s - Preço pedido $%d',
                 offered = '%s - Valor da proposta $%d',
                 step1 = 'Passo 1 de 2: valor',
@@ -246,8 +239,6 @@ return {
                 next = 'Seguinte',
                 terms = 'Condições adicionais',
                 submit = 'Submeter proposta',
-                success = 'Proposta submetida com sucesso.',
-                error = 'Não foi possível submeter a proposta.',
                 optional = 'As condições adicionais são opcionais.',
             },
             test = {
@@ -274,7 +265,6 @@ return {
                 vehLabel = 'Veículo',
                 quantityLabel = 'Quantidade',
                 noVehs = 'Este stand não tem veículos para encomendar. Pede a um administrador para adicionar.',
-                yourVeh = 'Os teus veículos',
                 ordered = 'Encomendados %d por $%d.',
             },
             employees = {
@@ -285,13 +275,10 @@ return {
                 addDesc = 'Introduz o ID de servidor do jogador que pretendes contratar.',
                 serverId = 'ID de servidor',
                 summary = '%s | vendas: %d | receita: $%d',
-                addButton = 'Adicionar funcionário',
                 current = 'Funcionários atuais (%d)',
                 empty = 'Ainda sem funcionários.',
                 fire = 'Remover funcionário',
                 fireConfirm = 'Tens a certeza de que pretendes remover este funcionário?',
-                errorRemove = 'Não foi possível remover o funcionário.',
-                errorAdd = 'Não foi possível adicionar o funcionário.',
                 addError = 'Não foi possível adicionar o funcionário.',
                 removeError = 'Não foi possível remover o funcionário.',
                 added = 'Funcionário adicionado com sucesso.',
@@ -302,9 +289,6 @@ return {
                 empty = 'Adiciona primeiro um funcionário na página de Funcionários.',
                 description = 'Clica numa permissão para a ativar ou desativar para esse funcionário.',
                 allowed = '%s | %d de %d permitidas',
-                granted = 'Permissão concedida.',
-                revoked = 'Permissão revogada.',
-                errorSave = 'Não foi possível guardar as permissões.',
                 saveError = 'Não foi possível guardar as permissões.',
                 saved = 'Permissões guardadas.',
             },
@@ -395,6 +379,5 @@ return {
             stockItem = '%s · $%d · %d em stock',
             customerLabel = '%s (#%d)',
         },
-        searchPlaceholder = 'Escreve para pesquisar veículos',
     }
 }

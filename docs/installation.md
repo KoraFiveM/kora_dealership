@@ -12,7 +12,7 @@ Kora Dealership is a dealership creator and showroom: an in-game admin tool to d
 
 1. **Add the folder** — Place `kora_dealership` in your resources directory (on the Kora recipe it is `resources/[kora]/kora_dealership`).
 
-2. **Dependencies** — The manifest declares `dependency 'kora_lib'`, `dependency 'kora_sql'` and `dependency 'kora_core'`, and loads `@kora_lib/init.lua` then `@kora_core/init.lua` as shared scripts before `config.lua` and `shared/functions.lua`. The README also lists `kora_vehiclekeys` (keys for delivered vehicles) and `kora_target` (the browse/sales/management targets) as runtime dependencies, though they are not declared as `dependency` lines in the manifest — ensure both before `kora_dealership`.
+2. **Dependencies** — The manifest declares `dependency 'kora_lib'`, `dependency 'kora_sql'` and `dependency 'kora_core'`, and loads `@kora_lib/init.lua` then `@kora_core/init.lua` as shared scripts before `shared/config.lua` and `shared/functions.lua`. The README also lists `kora_vehiclekeys` (keys for delivered vehicles) and `kora_target` (the browse/sales/management targets) as runtime dependencies, though they are not declared as `dependency` lines in the manifest — ensure both before `kora_dealership`.
 
 3. **Start order** — Start after kora_lib, kora_core, kora_sql, kora_vehiclekeys and kora_target.
 
