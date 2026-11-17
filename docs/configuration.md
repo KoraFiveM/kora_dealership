@@ -9,7 +9,7 @@ All options are in `shared/config.lua` (the `Config` table, shared between clien
 
 ## Locales
 
-The resource ships English (`locales/en.lua`) and Portuguese (`locales/pt.lua`). Set the server default with `setr qb_locale "en"` and make both languages available with `setr qb_locales "en,pt"`. Players can select Portuguese with `/language`. Reconnect after changing languages to refresh labels the resource sets at startup. Server-generated dealership messages use the server default, and missing translations fall back to English.
+The resource ships its translations in `locales/` (English `en.lua` is the source; translations include Portuguese `pt.lua`, Russian `ru.lua` and Ukrainian `ua.lua`), and the manifest sends the whole folder to clients. Set the server default with `setr kora_locale "en"` and the languages players may pick with `setr kora_locales "en,pt,ru,ua"`. Players choose a language with `/language`. Reconnect after changing languages to refresh labels the resource sets at startup. Server-generated dealership messages use the server default, and missing translations fall back to English.
 
 Vehicle class, employee permission, and payment method labels are configured in the corresponding `Config` tables.
 
