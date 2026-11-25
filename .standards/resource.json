@@ -11,10 +11,11 @@
       "client/views.lua"
     ],
     "server": [
-      "server/Management.lua",
+      "kora_versioncheck.lua",
       "server/creator.lua",
       "server/customer.lua",
       "server/functions.lua",
+      "server/Management.lua",
       "server/sales.lua",
       "server/schema.lua"
     ],
