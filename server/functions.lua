@@ -54,7 +54,7 @@ function fn.commitSaleWrites(dealer, statements)
 end
 
 function fn.notify(src, message, class)
-    Kora.notify.send(src, { title = Kora.lang('s.title'), message = message, type = class })
+    Kora.bridge.sendNotify(src, { title = Kora.lang('s.title'), message = message, type = class })
 end
 
 function fn.fail(message)
@@ -330,7 +330,7 @@ function fn.deliverVehicle(target, model, spawn, commit, expectedCid)
 
     local keyed, granted = pcall(function()
         if fn.citizenId(target) ~= cid then return false end
-        return exports.kora_vehiclekeys:giveKeys(target, plate)
+        return Kora.bridge.giveKeys(target, plate)
     end)
     if not keyed or granted == false then
         Kora.logging.warn('sale.grant_keys_failed', 'Could not grant keys for a purchased vehicle', { plate = plate })
