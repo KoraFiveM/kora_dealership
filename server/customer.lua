@@ -60,7 +60,7 @@ local function testDrive(src, dealer, index, model)
     SetVehicleNumberPlateText(vehicle, plate)
 
     SetTimeout(Config.testDriveSeconds * 1000, function() expireTestDrive(src, data) end)
-    local ok, granted = pcall(function() return exports.kora_vehiclekeys:giveKeys(src, plate) end)
+    local ok, granted = pcall(function() return Kora.bridge.giveKeys(src, plate) end)
     if not ok or not granted then
         expireTestDrive(src, data)
         return fn.fail(Kora.lang('s.errors.test_vehicle_keys_failed'))
